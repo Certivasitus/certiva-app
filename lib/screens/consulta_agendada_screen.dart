@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'mi_agenda_screen.dart';
 
 class ConsultaAgendadaScreen extends StatelessWidget {
   final String specialty;
@@ -194,9 +195,12 @@ class ConsultaAgendadaScreen extends StatelessWidget {
           width: double.infinity,
           child: ElevatedButton(
             onPressed: () {
-              // Navegar a mis consultas
-              Navigator.pop(context);
-              // Aquí podrías navegar a la pantalla de mis consultas
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const MiAgendaScreen(),
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFB47EDB),

@@ -44,7 +44,7 @@ class AnalisisAgendadoScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                
+
                 // Contenido principal centrado y scrolleable
                 Expanded(
                   child: SingleChildScrollView(
@@ -55,9 +55,9 @@ class AnalisisAgendadoScreen extends StatelessWidget {
                         children: [
                           // Ícono de éxito
                           _buildSuccessIcon(),
-                          
+
                           const SizedBox(height: 32),
-                          
+
                           // Mensaje de confirmación
                           const Text(
                             'Exámenes laboratoriales agendados exitosamente',
@@ -68,14 +68,14 @@ class AnalisisAgendadoScreen extends StatelessWidget {
                             ),
                             textAlign: TextAlign.center,
                           ),
-                          
+
                           const SizedBox(height: 24),
-                          
+
                           // Detalles del análisis
                           _buildAnalysisDetails(),
-                          
+
                           const SizedBox(height: 48),
-                          
+
                           // Botones de acción
                           _buildActionButtons(context),
                         ],
@@ -83,7 +83,7 @@ class AnalisisAgendadoScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 // Logo de Certiva al final
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -237,7 +237,6 @@ class AnalisisAgendadoScreen extends StatelessWidget {
             onPressed: () {
               // Navegar a mis análisis
               Navigator.pop(context);
-              // Aquí podrías navegar a la pantalla de mis análisis
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFB47EDB),
@@ -253,9 +252,9 @@ class AnalisisAgendadoScreen extends StatelessWidget {
             ),
           ),
         ),
-        
+
         const SizedBox(height: 12),
-        
+
         // Botón para agendar otro análisis
         SizedBox(
           width: double.infinity,
@@ -272,7 +271,7 @@ class AnalisisAgendadoScreen extends StatelessWidget {
               ),
             ),
             child: const Text(
-              'Agendar otro análisis',
+              'Agendar otro análisis.',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
@@ -280,4 +279,4 @@ class AnalisisAgendadoScreen extends StatelessWidget {
       ],
     );
   }
-} 
+}

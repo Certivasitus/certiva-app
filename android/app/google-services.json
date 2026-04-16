@@ -1,42 +1,49 @@
 {
   "project_info": {
-    "project_number": "991793219404",
-    "project_id": "certiva-11244",
-    "storage_bucket": "certiva-11244.firebasestorage.app"
+    "project_number": "625182682363",
+    "project_id": "certiva-51c59",
+    "storage_bucket": "certiva-51c59.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:991793219404:android:de11f09e5ba554eb3d31e9",
+        "mobilesdk_app_id": "1:625182682363:android:19f7f4852c9c18ae8f545e",
         "android_client_info": {
-          "package_name": "com.kove.certiva"
+          "package_name": "com.certivaclinica.app"
         }
       },
       "oauth_client": [
         {
-          "client_id": "991793219404-rlg56fkomkstgo6mi5spl55pebrnrvfr.apps.googleusercontent.com",
+          "client_id": "625182682363-vo1mp06r8t2jlst8m0or5j92cpk09pqt.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.kove.certiva",
-            "certificate_hash": "626d3035761889f77fa08500111772f18d7fed54"
+            "package_name": "com.certivaclinica.app",
+            "certificate_hash": "f683b49ad3d12f59be8cd309c9817491e6f1fa8f"
           }
         },
         {
-          "client_id": "991793219404-efnr1ru33gj0tcpb8qtbar3m4nsaf024.apps.googleusercontent.com",
+          "client_id": "625182682363-j0btgeoa4cc5lrbp5v9bm031s1fv6koo.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyCZqFeyZ9fjl3ibqjv7jQDp4i94_7v1kgA"
+          "current_key": "AIzaSyDEerzqFLlrTTtIhLSWlimEZ9aWJ_UxWOE"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "991793219404-efnr1ru33gj0tcpb8qtbar3m4nsaf024.apps.googleusercontent.com",
+              "client_id": "625182682363-j0btgeoa4cc5lrbp5v9bm031s1fv6koo.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "625182682363-v283q7gp7n5q5hq3ajrh9sb3bd66toek.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.certivaclinica.app"
+              }
             }
           ]
         }

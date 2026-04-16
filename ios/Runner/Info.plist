@@ -47,5 +47,34 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		
+		<key>NSFaceIDUsageDescription</key>
+		<string>Necesitamos tu rostro o huella para iniciar sesión de forma segura.</string>
+
+		<key>CFBundleLocalizations</key>
+		<array>
+			<string>es</string>
+		</array>
+
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>http</string>
+			<string>https</string>
+			<string>tel</string>
+			<string>mailto</string>
+			<string>whatsapp</string>
+		</array>
+
+		<key>CFBundleURLTypes</key>
+		<array>
+			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>Editor</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>com.googleusercontent.apps.625182682363-v283q7gp7n5q5hq3ajrh9sb3bd66toek</string>
+				</array>
+			</dict>
+		</array>
 	</dict>
 </plist>

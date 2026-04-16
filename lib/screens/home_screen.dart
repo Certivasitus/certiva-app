@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
 import '../services/user_service.dart';
 import 'main_drawer.dart';
 import 'login_screen.dart';
@@ -7,321 +8,167 @@ import 'mis_datos_screen.dart';
 import 'mis_resultados_screen.dart';
 import 'quiero_consultar_screen.dart';
 import 'mi_agenda_screen.dart';
+import 'chatbot_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  // --- Colores Material 3 ---
+  final Color _primaryColor = const Color(0xFFB47EDB); // Lila
+  final Color _secondaryColor = const Color(0xFF09D5D6); // Cyan
+  final Color _backgroundColor = const Color(0xFFF7F9FC);
+  final Color _onSurface = const Color(0xFF1F1F1F);
+  final Color _onSurfaceVariant = const Color(0xFF444746);
+  final Color _outline = const Color(0xFFE0E2E5);
+
+  late AnimationController _controller;
+  late Animation<double> _nameFade;
+  late Animation<double> _questionFade;
+  late Animation<double> _contentFade;
+  late Animation<Offset> _contentSlide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    _nameFade = CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.6, curve: Curves.easeOut));
+    _questionFade = CurvedAnimation(parent: _controller, curve: const Interval(0.2, 0.8, curve: Curves.easeOut));
+    _contentFade = CurvedAnimation(parent: _controller, curve: const Interval(0.4, 1.0, curve: Curves.easeOut));
+
+    _contentSlide = Tween<Offset>(begin: const Offset(0, 0.05), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.4, 1.0, curve: Curves.easeOutCubic)),
+    );
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final currentUser = UserService.getCurrentUser();
     final userEmail = currentUser?.email ?? 'Usuario';
-    // Extraer el nombre de usuario del email (parte antes del @)
-    final username = userEmail.contains('@') 
-        ? '@${userEmail.split('@')[0]}' 
-        : userEmail;
-    
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Color(0xFFB47EDB),
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () {
-              Scaffold.of(context).openDrawer();
-            },
-          ),
-        ),
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Text(
-              username,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(width: 8),
-            CircleAvatar(
-              backgroundColor: Colors.white,
-              radius: 18,
-              child: Icon(
-                Icons.person,
-                color: Color(0xFFB47EDB),
-                size: 20,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () async {
-              // Cerrar sesión de Google si está activa
-              try {
-                await GoogleSignIn().signOut();
-              } catch (e) {
-                print('Error al cerrar sesión de Google: $e');
-              }
-              
-              // Limpiar usuario actual
-              UserService.clearCurrentUser();
-              
-              // Navegar a la pantalla de login
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (route) => false,
-              );
-            },
-          ),
-        ],
-      ),
-      drawer: const MainDrawer(),
-      body: Stack(
-        children: [
-          // Imagen de fondo
-          Positioned.fill(
-            child: Image.asset(
-              'assets/Imagenes Certiva App-03.png',
-              fit: BoxFit.cover,
-            ),
-          ),
-          // Contenido principal con los accesos directos
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Primera fila: Inicio y Mis datos
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildMenuButton(
-                        context,
-                        icon: 'assets/Iconos acceso directo_Mesa de trabajo 1.png',
-                        label: 'Inicio',
-                        onTap: () {
-                          // Ya estamos en inicio, no hacer nada
-                        },
-                      ),
-                      _buildMenuButton(
-                        context,
-                        icon: 'assets/Iconos acceso directo-02.png',
-                        label: 'Mis datos',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const MisDatosScreen()),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 40),
-                  // Segunda fila: Resultados y Reserva turno
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildMenuButton(
-                        context,
-                        icon: 'assets/Iconos acceso directo-03.png',
-                        label: 'Resultados',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const MisResultadosScreen()),
-                          );
-                        },
-                      ),
-                      _buildMenuButton(
-                        context,
-                        icon: 'assets/Iconos acceso directo-04.png',
-                        label: 'Reserva turno',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const QuieroConsultarScreen()),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 40),
-                  // Tercera fila: Mi agenda (centrado)
-                  _buildMenuButton(
-                    context,
-                    icon: 'assets/Iconos acceso directo-05.png',
-                    label: 'Mi agenda',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const MiAgendaScreen()),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    final username = userEmail.contains('@') ? userEmail.split('@')[0] : userEmail;
+    final formattedName = username.isNotEmpty ? '${username[0].toUpperCase()}${username.substring(1)}' : username;
 
-  Widget _buildMenuButton(BuildContext context, {required String icon, required String label, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: Color(0xFFB47EDB),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
-                  spreadRadius: 2,
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
+    return Scaffold(
+      backgroundColor: _backgroundColor,
+      drawer: const MainDrawer(),
+      // SE ELIMINÓ EL FLOATING ACTION BUTTON
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            backgroundColor: _backgroundColor,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            pinned: true,
+            leading: Builder(
+              builder: (context) => Container(
+                margin: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
+                decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: _outline)),
+                child: IconButton(
+                  icon: Icon(Icons.menu_rounded, color: _onSurfaceVariant, size: 22),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
                 ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Image.asset(
-                icon,
-                fit: BoxFit.contain,
-                color: Colors.white,
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /* ======== CÓDIGO ANTERIOR COMENTADO ========
-  
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Color(0xFFB47EDB),
-        elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () {
-              Scaffold.of(context).openDrawer();
-            },
-          ),
-        ),
-        title: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: 'Buscar',
-              hintStyle: TextStyle(color: Color(0xFFB47EDB)),
-              prefixIcon: Icon(Icons.search, color: Color(0xFFB47EDB)),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications, color: Colors.white),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () async {
-              // Cerrar sesión de Google si está activa
-              try {
-                await GoogleSignIn().signOut();
-              } catch (e) {
-                print('Error al cerrar sesión de Google: $e');
-              }
-              
-              // Limpiar usuario actual
-              UserService.clearCurrentUser();
-              
-              // Navegar a la pantalla de login
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (route) => false,
-              );
-            },
-          ),
-        ],
-      ),
-      drawer: const MainDrawer(),
-      body: Column(
-        children: [
-          // Header morado extendido
-          Container(
-            width: double.infinity,
-            height: 20,
-            color: Color(0xFFB47EDB),
-          ),
-          // Contenido principal
-          Expanded(
+          SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '¡Agendá tu cita!',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
+                  FadeTransition(
+                    opacity: _nameFade,
+                    child: Text('Hola, $formattedName', style: TextStyle(color: _onSurface, fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                   ),
-                  const SizedBox(height: 20),
-                  // Lista de profesionales
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: 5,
-                      itemBuilder: (context, index) {
-                        return _buildProfessionalCard();
-                      },
-                    ),
+                  const SizedBox(height: 6),
+                  FadeTransition(
+                    opacity: _questionFade,
+                    child: Text("¿Qué deseas hacer hoy?", style: TextStyle(fontSize: 16, color: _onSurfaceVariant, fontWeight: FontWeight.w400)),
                   ),
-                  // Enlace inferior
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {},
-                      child: Text(
-                        'Ver listado completo',
-                        style: TextStyle(
-                          color: Color(0xFFB47EDB),
-                          decoration: TextDecoration.underline,
-                          fontSize: 16,
-                        ),
+
+                  const SizedBox(height: 24),
+
+                  // --- TARJETA DE IA EN MODO CLARO ---
+                  FadeTransition(
+                    opacity: _contentFade,
+                    child: _buildAIConsultationCard(context),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  FadeTransition(
+                    opacity: _contentFade,
+                    child: SlideTransition(
+                      position: _contentSlide,
+                      child: Column(
+                        children: [
+                          _buildHeroCard(
+                            context,
+                            title: "Reservar un Turno",
+                            subtitle: "Agendá una nueva consulta médica",
+                            iconPath: 'assets/Iconos acceso directo-04.png',
+                            color: _primaryColor,
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const QuieroConsultarScreen())),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildSquareCard(
+                                  context,
+                                  title: "Mis\nResultados",
+                                  iconPath: 'assets/Iconos acceso directo-03.png',
+                                  color: _primaryColor,
+                                  isOutlined: true,
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MisResultadosScreen())),
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: _buildSquareCard(
+                                  context,
+                                  title: "Mi\nAgenda",
+                                  iconPath: 'assets/Iconos acceso directo-05.png',
+                                  color: _secondaryColor,
+                                  isOutlined: false,
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MiAgendaScreen())),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _buildListCard(
+                            context,
+                            title: "Mi Perfil y Datos",
+                            iconPath: 'assets/Iconos acceso directo-02.png',
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const MisDatosScreen())),
+                          ),
+                          const SizedBox(height: 48),
+                          Center(
+                            child: Opacity(
+                              opacity: 0.4,
+                              child: Image.asset('assets/icons/logo_color.png', width: 90, errorBuilder: (ctx, error, stack) => Icon(Icons.local_hospital_rounded, size: 40, color: Colors.grey.shade300)),
+                            ),
+                          ),
+                          const SizedBox(height: 30),
+                        ],
                       ),
                     ),
                   ),
@@ -334,124 +181,128 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProfessionalCard() {
+  // --- WIDGET TARJETA DE CONSULTA IA (ESTILO CLARO) ---
+  Widget _buildAIConsultationCard(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: _secondaryColor.withOpacity(0.08), // Tonal claro usando el Cyan
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: _secondaryColor.withOpacity(0.2)),
       ),
-      child: Row(
-        children: [
-          // Avatar del profesional
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Color(0xFF09D5D6), width: 2),
-            ),
-            child: const Icon(
-              Icons.person,
-              size: 30,
-              color: Color(0xFF09D5D6),
-            ),
-          ),
-          const SizedBox(width: 16),
-          // Información del profesional
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CertivaChatScreen())),
+          borderRadius: BorderRadius.circular(28),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
               children: [
-                const Text(
-                  'Dr. David Gilmour',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Lunes - miércoles - viernes',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 8),
+                // Icono con fondo circular
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Color(0xFF09D5D6),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text(
-                    'Clínica Médica',
-                    style: TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: _secondaryColor.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
+                      ]
+                  ),
+                  child: Icon(Icons.auto_awesome_rounded, color: _secondaryColor, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Consulta con Lyra",
+                        style: TextStyle(color: Color(0xFF1F1F1F), fontSize: 17, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "Nuestra IA asistente para tus dudas.",
+                        style: TextStyle(color: _onSurfaceVariant, fontSize: 13),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                // Calificación (5 estrellas)
-                Row(
-                  children: List.generate(5, (index) {
-                    return Icon(
-                      Icons.star,
-                      size: 16,
-                      color: index < 4 ? Color(0xFF09D5D6) : Colors.grey[300],
-                    );
-                  }),
-                ),
+                Icon(Icons.arrow_forward_ios_rounded, color: _secondaryColor.withOpacity(0.5), size: 16),
               ],
             ),
           ),
-          // Botones de acción
-          Column(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Color(0xFFB47EDB),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.calendar_today, color: Colors.white, size: 20),
-                  onPressed: () {},
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Color(0xFFB47EDB),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.phone, color: Colors.white, size: 20),
-                  onPressed: () {},
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
-  
-  ======== FIN CÓDIGO ANTERIOR COMENTADO ======== */
-} 
+
+  // --- RESTO DE WIDGETS DE DISEÑO ---
+  Widget _buildHeroCard(BuildContext context, {required String title, required String subtitle, required String iconPath, required Color color, required VoidCallback onTap}) {
+    return Container(
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(32)),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(32),
+          child: Padding(
+            padding: const EdgeInsets.all(28.0),
+            child: Row(children: [
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8)), child: const Text("Recomendado", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
+                const SizedBox(height: 16),
+                Text(title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+                const SizedBox(height: 4),
+                Text(subtitle, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14, height: 1.3)),
+              ])),
+              const SizedBox(width: 16),
+              Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle), child: Image.asset(iconPath, width: 40, height: 40, color: Colors.white)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSquareCard(BuildContext context, {required String title, required String iconPath, required Color color, bool isOutlined = false, required VoidCallback onTap}) {
+    return Container(
+      height: 170,
+      decoration: BoxDecoration(color: isOutlined ? Colors.white : color.withOpacity(0.12), borderRadius: BorderRadius.circular(28), border: isOutlined ? Border.all(color: _outline) : null),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(28),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: isOutlined ? color.withOpacity(0.1) : Colors.white, shape: BoxShape.circle), child: Image.asset(iconPath, width: 28, height: 28, color: color)),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _onSurface, height: 1.2)),
+                Icon(Icons.arrow_forward_rounded, color: isOutlined ? _onSurfaceVariant : color, size: 20),
+              ]),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListCard(BuildContext context, {required String title, required String iconPath, required VoidCallback onTap}) {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: _outline)),
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          onTap: onTap,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          leading: Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: _backgroundColor, shape: BoxShape.circle), child: Image.asset(iconPath, width: 22, height: 22, color: _onSurfaceVariant)),
+          title: Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16, color: _onSurface)),
+          trailing: Icon(Icons.arrow_forward_ios_rounded, size: 16, color: _onSurfaceVariant),
+        ),
+      ),
+    );
+  }
+}

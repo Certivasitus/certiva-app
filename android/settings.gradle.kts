@@ -18,9 +18,18 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.7.0" apply false
-    id("org.jetbrains.kotlin.android") version "1.8.22" apply false
-    id("com.google.gms.google-services") version "4.4.2" apply false
+
+    //  (de 8.7.3 a 8.9.1)
+    id("com.android.application") version "8.9.1" apply false
+
+    // Mantén la de Kotlin en 2.1.0 que ya está bien
+    id("org.jetbrains.kotlin.android") version "2.1.0" apply false
+
+    // Mantén Google Services
+    id("com.google.gms.google-services") version "4.4.4" apply false
+    
+
+    id("com.google.firebase.crashlytics") version "2.9.9" apply false
 }
 
 include(":app")

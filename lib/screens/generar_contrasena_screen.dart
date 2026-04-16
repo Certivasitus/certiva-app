@@ -18,11 +18,72 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
   bool showPassword = false;
   bool showRepeatPassword = false;
 
+  // Variables para la complejidad de la contraseña
+  double _passwordStrength = 0.0;
+  String _passwordStrengthLabel = 'Baja';
+  Color _passwordStrengthColor = Colors.red;
+
+  @override
+  void initState() {
+    super.initState();
+    // Escuchar cambios en el controlador de la contraseña
+    passwordController.addListener(_checkPasswordStrength);
+  }
+
   @override
   void dispose() {
+    passwordController.removeListener(_checkPasswordStrength);
     passwordController.dispose();
     repeatPasswordController.dispose();
     super.dispose();
+  }
+
+  // Lógica para evaluar la contraseña
+  void _checkPasswordStrength() {
+    String password = passwordController.text;
+    double strength = 0.0;
+
+    if (password.isEmpty) {
+      setState(() {
+        _passwordStrength = 0.0;
+        _passwordStrengthLabel = 'Baja';
+        _passwordStrengthColor = Colors.grey;
+      });
+      return;
+    }
+
+    // Regla 1: Longitud mayor a 6 caracteres
+    if (password.length > 6) strength += 0.25;
+    // Regla 2: Longitud mayor a 10 caracteres
+    if (password.length > 10) strength += 0.25;
+    // Regla 3: Contiene al menos un número
+    if (password.contains(RegExp(r'[0-9]'))) strength += 0.25;
+    // Regla 4: Contiene al menos una letra mayúscula o un carácter especial
+    if (password.contains(RegExp(r'[A-Z]')) || password.contains(RegExp(r'[!@#\$&*~]'))) strength += 0.25;
+
+    // Asignar colores y etiquetas basados en el puntaje
+    String label;
+    Color color;
+
+    if (strength <= 0.25) {
+      label = 'Baja';
+      color = Colors.red;
+    } else if (strength == 0.5) {
+      label = 'Media';
+      color = Colors.orange;
+    } else if (strength == 0.75) {
+      label = 'Buena';
+      color = Colors.lightGreen;
+    } else {
+      label = 'Alta';
+      color = const Color(0xFF09D5D6); // Cyan
+    }
+
+    setState(() {
+      _passwordStrength = strength;
+      _passwordStrengthLabel = label;
+      _passwordStrengthColor = color;
+    });
   }
 
   void _guardarContrasena() async {
@@ -40,6 +101,14 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
       return;
     }
 
+    // Opcional: Validar que la contraseña sea al menos "Media"
+    if (_passwordStrength < 0.5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La contraseña es muy débil. Intenta agregar números o mayúsculas.')),
+      );
+      return;
+    }
+
     // Loader
     showDialog(
       context: context,
@@ -48,8 +117,7 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
     );
 
     try {
-      // Registro real en backend con la contraseña definida
-      final apiResult = await CertivaApiService.registrarCliente(
+      final apiResult = await CertivaApiService().registrarCliente(
         email: widget.user.email,
         password: passwordController.text.trim(),
         nombre: widget.user.nombres,
@@ -60,6 +128,7 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
         telefono: widget.user.celular,
       );
 
+      if (!mounted) return;
       Navigator.pop(context); // cerrar loader
 
       if (apiResult['success'] == true) {
@@ -114,23 +183,27 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
           );
         }
       }
-    } catch (e) {
+    } catch (e, stacktrace) {
+      if (!mounted) return;
       Navigator.pop(context); // cerrar loader
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Error de Conexión'),
-            content: Text('No se pudo conectar con el servidor: $e'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Aceptar'),
-              ),
-            ],
-          ),
-        );
-      }
+
+      print('=== ERROR CAPTURADO EN LA UI ===');
+      print(e);
+      print(stacktrace);
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Error de Conexión'),
+          content: Text('Revisa la consola para ver el error exacto.\nDetalle: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Aceptar'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -197,36 +270,37 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
                     ),
                   ),
                 ),
-                // Indicador de contraseña válida
+                // Indicador de contraseña válido DÍNAMICO
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Text(
-                      'Contraseña válida',
+                    Text(
+                      passwordController.text.isEmpty ? 'Nivel de seguridad' : 'Contraseña ${_passwordStrengthLabel.toLowerCase()}',
                       style: TextStyle(
-                        color: Color(0xFF09D5D6),
+                        color: _passwordStrengthColor,
                         fontSize: 14,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: LinearProgressIndicator(
-                        value: 1.0,
-                        backgroundColor: Color(0xFFB47EDB).withOpacity(0.2),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF09D5D6)),
+                        value: _passwordStrength,
+                        backgroundColor: Colors.grey[300],
+                        valueColor: AlwaysStoppedAnimation<Color>(_passwordStrengthColor),
                         minHeight: 6,
+                        borderRadius: BorderRadius.circular(4), // Opcional: bordes redondeados
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Color(0xFF09D5D6),
+                        color: _passwordStrengthColor,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
-                        'Alta',
-                        style: TextStyle(
+                      child: Text(
+                        _passwordStrengthLabel,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
@@ -276,7 +350,7 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
                     child: ElevatedButton(
                       onPressed: _guardarContrasena,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFB47EDB),
+                        backgroundColor: const Color(0xFFB47EDB),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -300,4 +374,4 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
       ),
     );
   }
-} 
+}

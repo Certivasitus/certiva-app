@@ -16,6 +16,11 @@ class _RecuperarContrasenaScreenState
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
+  // Definición de colores constantes para mantener consistencia
+  final Color _primaryColor = const Color(0xFFB47EDB); // Lila (Botón)
+  final Color _secondaryColor = const Color(0xFF09D5D6); // Cyan (Texto/Bordes)
+  final Color _backgroundColor = const Color(0xFFF7F9FC); // Fondo sutil
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -23,6 +28,9 @@ class _RecuperarContrasenaScreenState
   }
 
   Future<void> _handleSubmit() async {
+    // Cerrar el teclado al enviar
+    FocusScope.of(context).unfocus();
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -43,114 +51,148 @@ class _RecuperarContrasenaScreenState
       });
 
       if (success) {
-        // Navegar a la pantalla de éxito
-        Navigator.push(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => const PasswordResetSuccessScreen(),
           ),
         );
       } else {
-        // Mostrar mensaje de error
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No se pudo enviar el email de recuperación. Verifique que el correo esté registrado.',
-            ),
-            backgroundColor: Colors.redAccent,
-            duration: Duration(seconds: 4),
-          ),
-        );
+        _showSnackBar('No se pudo enviar el email. Verifique que el correo esté registrado.', isError: true);
       }
     } catch (e) {
       if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al solicitar recuperación: $e'),
-          backgroundColor: Colors.redAccent,
-          duration: const Duration(seconds: 4),
-        ),
-      );
+      setState(() => _isLoading = false);
+      _showSnackBar('Error al solicitar recuperación: $e', isError: true);
     }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: size.height - 80),
+    // GestureDetector para cerrar el teclado al tocar cualquier parte blanca
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.black54),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Image.asset(
-                      'assets/icons/logo_color.png',
-                      width: 190,
-                      fit: BoxFit.contain,
+                  const SizedBox(height: 20),
+                  // Logo con Hero para animación suave si viene del login
+                  Hero(
+                    tag: 'app_logo',
+                    child: Center(
+                      child: Image.asset(
+                        'assets/icons/logo_color.png',
+                        width: 180, // Tamaño ajustado
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 48),
-                  const Text(
+                  const SizedBox(height: 40),
+
+                  // Título
+                  Text(
                     'Recuperar contraseña',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 24, // Más grande
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF09D5D6),
+                      color: _secondaryColor,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Ingrese su correo electrónico y le enviaremos un enlace para restablecer su contraseña.',
+                  const SizedBox(height: 16),
+
+                  // Descripción
+                  Text(
+                    'Ingresa el correo electrónico asociado a tu cuenta y te enviaremos las instrucciones para restablecer tu contraseña.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
+                      fontSize: 15,
+                      color: Colors.grey[600],
+                      height: 1.5, // Mejor lectura
                     ),
                   ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 40),
+
+                  // Campo de Email
                   _buildEmailField(),
-                  const SizedBox(height: 48),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _handleSubmit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFB47EDB),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+
+                  const SizedBox(height: 40),
+
+                  // Botón de Enviar
+                  SizedBox(
+                    height: 55, // Botón más alto
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _handleSubmit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        elevation: 4,
+                        shadowColor: _primaryColor.withOpacity(0.4),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12), // Bordes más redondeados
+                        ),
+                        disabledBackgroundColor: Colors.grey[300],
                       ),
-                      disabledBackgroundColor: Colors.grey[300],
+                      child: _isLoading
+                          ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                          : const Text(
+                        'ENVIAR ENLACE',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Text(
-                            'Enviar enlace de recuperación',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Botón volver texto simple
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Volver al inicio de sesión',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -165,44 +207,61 @@ class _RecuperarContrasenaScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Correo electrónico',
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey,
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            'Correo electrónico',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
           ),
         ),
-        const SizedBox(height: 8),
         TextFormField(
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.done,
           enabled: !_isLoading,
-          decoration: const InputDecoration(
+          style: const TextStyle(fontSize: 16),
+          decoration: InputDecoration(
             hintText: 'ejemplo@correo.com',
-            border: UnderlineInputBorder(
+            hintStyle: TextStyle(color: Colors.grey[400]),
+            filled: true,
+            fillColor: Colors.grey[50], // Fondo sutil para el input
+            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                color: Color(0xFF09D5D6),
+                color: _secondaryColor, // Color Cyan al enfocar
                 width: 2,
               ),
             ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(
-                color: Color(0xFF09D5D6),
-                width: 2,
-              ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.redAccent, width: 1),
             ),
             prefixIcon: Icon(
-              Icons.email,
-              color: Color(0xFF09D5D6),
+              Icons.email_outlined,
+              color: _secondaryColor,
             ),
           ),
           validator: (value) {
             if (value == null || value.trim().isEmpty) {
-              return 'Por favor ingrese su correo electrónico';
+              return 'Por favor ingrese su correo';
             }
-            if (!value.contains('@') || !value.contains('.')) {
-              return 'Por favor ingrese un correo electrónico válido';
+            // Validación básica de regex para email
+            final emailRegex = RegExp(r'^[^@]+@[^@]+\.[^@]+');
+            if (!emailRegex.hasMatch(value)) {
+              return 'Ingrese un correo electrónico válido';
             }
             return null;
           },
@@ -211,4 +270,3 @@ class _RecuperarContrasenaScreenState
     );
   }
 }
-

@@ -9,8 +9,8 @@ import UIKit
   ) -> Bool {
     // Retrasar el registro de plugins para evitar crash en path_provider
     // Los plugins se registran después de que iOS esté completamente inicializado
-    // Aumentado a 2.0 segundos porque 0.5s no era suficiente (crash en compilación 5)
-    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+    // Balance: 1.0s evita el crash sin colgar la app (2.0s era demasiado largo)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
       GeneratedPluginRegistrant.register(with: self)
     }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)

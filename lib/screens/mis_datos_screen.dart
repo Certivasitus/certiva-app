@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/user_service.dart';
 import '../services/client_api_service.dart';
+import '../services/prepaga_service.dart';
+import '../widgets/custom_snackbar.dart';
+import '../screens/login_screen.dart';
 
 class MisDatosScreen extends StatefulWidget {
   const MisDatosScreen({Key? key}) : super(key: key);
@@ -12,40 +15,66 @@ class MisDatosScreen extends StatefulWidget {
 
 class _MisDatosScreenState extends State<MisDatosScreen> {
   final _formKey = GlobalKey<FormState>();
+
   late TextEditingController nombresController;
   late TextEditingController apellidosController;
   late TextEditingController cedulaController;
   late TextEditingController direccionController;
   late TextEditingController celularController;
   late TextEditingController emailController;
-  late TextEditingController seguroController;
-  late TextEditingController rucController;
-  late TextEditingController razonSocialController;
-  String? selectedSexo; // "1" = MASCULINO, "2" = FEMENINO
+
+  List<Prepaga> _listaPrepagas = [];
+  String? _selectedPrepagaId;
+  bool _isLoadingPrepagas = false;
+
   bool isEditing = false;
-  bool isSaving = false; // Para mostrar loading al guardar
+  bool isSaving = false;
+
+  // Paleta de Colores Moderna
+  final Color primaryPurple = const Color(0xFFB47EDB);
+  final Color accentCyan = const Color(0xFF09D5D6);
+  final Color textDark = const Color(0xFF2D3142);
+  final Color textGrey = const Color(0xFF9E9E9E);
+  final Color dangerRed = const Color(0xFFF44336);
+  final Color backgroundLight = const Color(0xFFF4F6F9); // Fondo más suave
+  final Color inputFillColor = const Color(0xFFF8F9FA); // Fondo de inputs
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
-    
-    // Sincronizar con API en segundo plano cuando se abre la pantalla
+    _loadPrepagas();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncUserDataInBackground();
     });
   }
 
-  // Sincronizar datos del usuario en segundo plano
+  Future<void> _loadPrepagas() async {
+    setState(() => _isLoadingPrepagas = true);
+    try {
+      final prepagas = await PrepagaService.getPrepagas();
+      if (mounted) {
+        setState(() {
+          _listaPrepagas = prepagas;
+          if (_selectedPrepagaId != null && _listaPrepagas.isNotEmpty) {
+            final existe = _listaPrepagas.any((element) => element.id == _selectedPrepagaId);
+            if (!existe) _selectedPrepagaId = null;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error al cargar prepagas: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingPrepagas = false);
+    }
+  }
+
   void _syncUserDataInBackground() {
     final currentUser = UserService.getCurrentUser();
     if (currentUser != null) {
-      print('🔄 [MisDatosScreen] Iniciando sincronización automática en segundo plano...');
       UserService.syncUserByEmailInBackground(currentUser.email).then((_) {
-        // Refrescar la pantalla si los datos cambiaron
-        if (mounted) {
-          setState(() {});
-        }
+        if (mounted) setState(() {});
       });
     }
   }
@@ -59,22 +88,21 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
       direccionController = TextEditingController(text: currentUser.direccion);
       celularController = TextEditingController(text: currentUser.celular);
       emailController = TextEditingController(text: currentUser.email);
-      seguroController = TextEditingController(text: currentUser.seguro);
-      rucController = TextEditingController(text: currentUser.ruc ?? '');
-      razonSocialController = TextEditingController(text: currentUser.razonSocial ?? '');
-      selectedSexo = currentUser.sexo; // "1" o "2"
+
+      String? seguroTemp = currentUser.seguro;
+      if (seguroTemp != null && (seguroTemp.isEmpty || seguroTemp == 'null' || seguroTemp == '0')) {
+        _selectedPrepagaId = null;
+      } else {
+        _selectedPrepagaId = seguroTemp;
+      }
     } else {
-      // Si no hay usuario, inicializar con valores vacíos
       nombresController = TextEditingController();
       apellidosController = TextEditingController();
       cedulaController = TextEditingController();
       direccionController = TextEditingController();
       celularController = TextEditingController();
       emailController = TextEditingController();
-      seguroController = TextEditingController();
-      rucController = TextEditingController();
-      razonSocialController = TextEditingController();
-      selectedSexo = null;
+      _selectedPrepagaId = null;
     }
   }
 
@@ -86,9 +114,6 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
     direccionController.dispose();
     celularController.dispose();
     emailController.dispose();
-    seguroController.dispose();
-    rucController.dispose();
-    razonSocialController.dispose();
     super.dispose();
   }
 
@@ -98,207 +123,242 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
     });
   }
 
+  // --- LÓGICA DE ELIMINACIÓN DE CUENTA ---
+
+  void _showDeleteAccountDialog() {
+    final TextEditingController confirmController = TextEditingController();
+    const String verificationCode = "ELIMINAR";
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+            builder: (context, setStateDialog) {
+              bool isButtonEnabled = confirmController.text.trim() == verificationCode;
+
+              return AlertDialog(
+                insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                backgroundColor: Colors.white,
+                surfaceTintColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                scrollable: true,
+
+                title: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: dangerRed.withOpacity(0.1), shape: BoxShape.circle),
+                      child: Icon(Icons.warning_amber_rounded, color: dangerRed, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text('Eliminar cuenta', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF2D3142))),
+                    ),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Esta acción es irreversible. Perderás el acceso a tus citas, historial médico y datos personales.',
+                      style: TextStyle(fontSize: 14, color: Colors.grey.shade700, height: 1.4),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Para confirmar, escribe "$verificationCode":',
+                      style: TextStyle(fontWeight: FontWeight.w600, color: textDark, fontSize: 13),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: confirmController,
+                      onChanged: (value) => setStateDialog(() {}),
+                      decoration: InputDecoration(
+                        hintText: verificationCode,
+                        hintStyle: TextStyle(color: Colors.grey.shade400),
+                        isDense: true,
+                        filled: true,
+                        fillColor: inputFillColor,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isButtonEnabled ? dangerRed : primaryPurple, width: 2),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('Cancelar', style: TextStyle(color: textGrey, fontWeight: FontWeight.w600)),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isButtonEnabled ? dangerRed : Colors.grey.shade200,
+                      foregroundColor: isButtonEnabled ? Colors.white : Colors.grey.shade500,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    onPressed: isButtonEnabled
+                        ? () {
+                      Navigator.pop(context);
+                      _handleAccountDeletion();
+                    }
+                        : null,
+                    child: const Text('Eliminar', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              );
+            }
+        );
+      },
+    );
+  }
+
+  void _handleAccountDeletion() async {
+    final currentUser = UserService.getCurrentUser();
+
+    if (currentUser == null || currentUser.idCliente == null) {
+      CustomSnackBar.showError(context, message: 'No se pudo identificar al usuario activo.', title: 'Error de sesión');
+      return;
+    }
+
+    setState(() => isSaving = true);
+    final result = await ClientApiService.requestAccountDeletion(currentUser.idCliente!);
+
+    if (mounted) {
+      setState(() => isSaving = false);
+
+      if (result['success'] == true) {
+        CustomSnackBar.showSuccess(context, title: 'Solicitud enviada', message: result['message']);
+        await Future.delayed(const Duration(milliseconds: 2500));
+        await UserService.clearLoginCredentials();
+
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (Route<dynamic> route) => false,
+          );
+        }
+      } else {
+        CustomSnackBar.showError(context, title: 'Error al eliminar', message: result['message'] ?? 'Ocurrió un problema inesperado.');
+      }
+    }
+  }
+
   void _saveChanges() async {
     if (_formKey.currentState!.validate()) {
       final currentUser = UserService.getCurrentUser();
-      if (currentUser == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: No hay usuario logueado'),
-            backgroundColor: Colors.red,
-          ),
-        );
+
+      if (currentUser == null || currentUser.idCliente == null) {
+        CustomSnackBar.showError(context, message: 'No se puede actualizar sin un usuario válido.', title: 'Error de sesión');
         return;
       }
 
-      // Verificar que tenga idCliente para poder actualizar en la API
-      if (currentUser.idCliente == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: No se puede actualizar sin ID de cliente'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+      if (celularController.text.trim().isEmpty || direccionController.text.trim().isEmpty || _selectedPrepagaId == null) {
+        CustomSnackBar.showError(context, message: 'Por favor, complete todos los campos obligatorios.', title: 'Faltan datos');
         return;
       }
 
-      // IMPORTANTE: La API usa el email para identificar al usuario, no para actualizarlo
-      // Por lo tanto, siempre debemos usar el email original del usuario registrado
-      // No el email del controlador (que puede estar vacío o modificado)
-      String email = currentUser.email.trim();
-      
-      // Validaciones nuevas según API: teléfono, dirección, idPrepaga
-      if (celularController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: El teléfono es obligatorio'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      if (direccionController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: La dirección es obligatoria'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      if (seguroController.text.trim().isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: La prepaga (idPrepaga) es obligatoria'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      print('📧 [MisDatosScreen] Usando email original del usuario: $email');
-      print('📧 [MisDatosScreen] Email en controlador: ${emailController.text}');
-
-      setState(() {
-        isSaving = true;
-      });
+      setState(() => isSaving = true);
 
       try {
-        print('📧 [MisDatosScreen] Email a enviar: $email');
-        print('📧 [MisDatosScreen] Email del controlador: ${emailController.text}');
-        print('📧 [MisDatosScreen] Email del usuario actual: ${currentUser.email}');
-        print('📧 [MisDatosScreen] ID Cliente: ${currentUser.idCliente}');
-        
-        // Llamar a la API para actualizar los datos con la nueva especificación
         final result = await ClientApiService.updateClientData(
           idCliente: currentUser.idCliente!,
-          idPrepaga: seguroController.text.trim(), // obligatorio
+          idPrepaga: _selectedPrepagaId!,
           telefono: celularController.text.trim(),
           direccion: direccionController.text.trim(),
         );
 
         if (result != null && result['success'] == true) {
-          // Si la API actualizó correctamente, actualizar el usuario local
           final updatedUser = User(
-            nombres: nombresController.text,
-            apellidos: apellidosController.text,
-            cedula: cedulaController.text,
+            nombres: currentUser.nombres,
+            apellidos: currentUser.apellidos,
+            cedula: currentUser.cedula,
+            email: currentUser.email,
+            idCliente: currentUser.idCliente,
+            password: currentUser.password,
+            sexo: currentUser.sexo,
+            ruc: currentUser.ruc,
+            razonSocial: currentUser.razonSocial,
             direccion: direccionController.text,
             celular: celularController.text,
-            email: emailController.text,
-            seguro: seguroController.text,
-            password: currentUser.password, // Mantener la contraseña actual
-            idCliente: currentUser.idCliente, // IMPORTANTE: Preservar el ID de cliente
-            ruc: rucController.text.trim().isNotEmpty ? rucController.text.trim() : null,
-            razonSocial: razonSocialController.text.trim().isNotEmpty ? razonSocialController.text.trim() : null,
-            sexo: selectedSexo,
+            seguro: _selectedPrepagaId!,
           );
 
           await UserService.saveUser(updatedUser);
-          // Actualizar el usuario actual con los nuevos datos
           UserService.setCurrentUser(updatedUser);
-          
-          // Recargar los datos en los controladores
-          _loadUserData();
-          
+
           if (mounted) {
             setState(() {
               isEditing = false;
               isSaving = false;
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(result['message'] ?? 'Datos guardados correctamente'),
-                backgroundColor: Colors.green,
-                duration: const Duration(seconds: 3),
-              ),
-            );
+            CustomSnackBar.showSuccess(context, title: '¡Todo listo!', message: result['message'] ?? 'Tu perfil ha sido actualizado correctamente.');
           }
         } else {
-          // Error al actualizar en la API
           if (mounted) {
-            setState(() {
-              isSaving = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(result?['message'] ?? 'Error al actualizar datos en el servidor'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 4),
-              ),
-            );
+            setState(() => isSaving = false);
+            CustomSnackBar.showError(context, message: result?['message'] ?? 'No se pudieron guardar los cambios.');
           }
         }
       } catch (e) {
-        print('🚨 [MisDatosScreen] Error al guardar: $e');
         if (mounted) {
-          setState(() {
-            isSaving = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error de conexión: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+          setState(() => isSaving = false);
+          CustomSnackBar.showError(context, message: 'Error de conexión con el servidor. Intente nuevamente.');
         }
       }
     }
   }
 
+  // Obtenemos iniciales para el Avatar
+  String _getInitials() {
+    String initials = "";
+    if (nombresController.text.isNotEmpty) initials += nombresController.text[0].toUpperCase();
+    if (apellidosController.text.isNotEmpty) initials += apellidosController.text[0].toUpperCase();
+    return initials.isEmpty ? "U" : initials;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final currentUser = UserService.getCurrentUser();
-    
+    String nombrePrepagaActual = 'Sin seguro seleccionado';
+    if (_selectedPrepagaId != null) {
+      if (_listaPrepagas.isNotEmpty) {
+        try {
+          final prepaga = _listaPrepagas.firstWhere((p) => p.id == _selectedPrepagaId);
+          nombrePrepagaActual = prepaga.nombre;
+        } catch (_) {
+          nombrePrepagaActual = 'Sin seguro seleccionado';
+        }
+      } else {
+        nombrePrepagaActual = 'Cargando...';
+      }
+    }
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundLight,
       appBar: AppBar(
-        backgroundColor: Color(0xFFB47EDB),
+        backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Mis datos',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
+        centerTitle: true,
+        iconTheme: IconThemeData(color: primaryPurple),
+        title: Text('Mi Perfil', style: TextStyle(color: textDark, fontWeight: FontWeight.bold)),
         actions: [
-          // Indicador de fuente de datos
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: currentUser?.idCliente != null ? Colors.green : Colors.orange,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  currentUser?.idCliente != null ? Icons.cloud_done : Icons.phone_android,
-                  color: Colors.white,
-                  size: 16,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  currentUser?.idCliente != null ? 'API' : 'HIVE',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
           IconButton(
-            icon: Icon(
-              isEditing ? Icons.close : Icons.edit,
-              color: Colors.white,
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: Icon(
+                isEditing ? Icons.close_rounded : Icons.edit_rounded,
+                key: ValueKey<bool>(isEditing),
+                color: isEditing ? dangerRed : primaryPurple,
+              ),
             ),
             onPressed: _toggleEditing,
           ),
@@ -307,200 +367,190 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          physics: const BouncingScrollPhysics(),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Editar mis datos',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Información de fuente de datos
+              // --- CABECERA DE PERFIL ---
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: currentUser?.idCliente != null ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: currentUser?.idCliente != null ? Colors.green : Colors.orange,
-                    width: 1,
-                  ),
-                ),
-                child: Row(
+                color: Colors.white,
+                padding: const EdgeInsets.only(bottom: 30, top: 20),
+                child: Column(
                   children: [
-                    Icon(
-                      currentUser?.idCliente != null ? Icons.cloud_done : Icons.phone_android,
-                      color: currentUser?.idCliente != null ? Colors.green : Colors.orange,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            currentUser?.idCliente != null ? 'Datos sincronizados desde API' : 'Datos locales de Hive',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: currentUser?.idCliente != null ? Colors.green : Colors.orange,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            currentUser?.idCliente != null 
-                              ? 'ID Cliente: ${currentUser!.idCliente} • Última actualización: Ahora'
-                              : 'Sin conexión a API • Última actualización: Al registrarse',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
+                    CircleAvatar(
+                      radius: 45,
+                      backgroundColor: primaryPurple.withOpacity(0.1),
+                      child: Text(
+                        _getInitials(),
+                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: primaryPurple),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '${nombresController.text} ${apellidosController.text}',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      emailController.text,
+                      style: TextStyle(fontSize: 14, color: textGrey),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              // Campos de datos
-              _buildDataField(
-                label: 'Nombres',
-                controller: nombresController,
-                enabled: isEditing,
-              ),
-              const SizedBox(height: 16),
-              _buildDataField(
-                label: 'Apellidos',
-                controller: apellidosController,
-                enabled: isEditing,
-              ),
-              const SizedBox(height: 16),
-              _buildDataField(
-                label: 'Cédula de Identidad',
-                controller: cedulaController,
-                enabled: false, // La cédula NUNCA se puede editar
-                isReadOnly: true, // Marcado como solo lectura
-              ),
-              const SizedBox(height: 16),
-              _buildDataField(
-                label: 'Dirección particular',
-                controller: direccionController,
-                enabled: isEditing,
-              ),
-              const SizedBox(height: 16),
-              _buildDataField(
-                label: 'Número de celular',
-                controller: celularController,
-                enabled: isEditing,
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 16),
-              _buildDataField(
-                label: 'Email',
-                controller: emailController,
-                enabled: isEditing,
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 16),
-              _buildDataField(
-                label: 'Seguro médico/alianzas',
-                controller: seguroController,
-                enabled: isEditing,
-              ),
-              const SizedBox(height: 16),
-              _buildDataField(
-                label: 'RUC',
-                controller: rucController,
-                enabled: isEditing,
-                keyboardType: TextInputType.text,
-              ),
-              const SizedBox(height: 16),
-              _buildDataField(
-                label: 'Razón Social',
-                controller: razonSocialController,
-                enabled: isEditing,
-                keyboardType: TextInputType.text,
-              ),
-              const SizedBox(height: 16),
-              _buildSexoDropdown(),
-              const SizedBox(height: 32),
-              // Botón de debug para ver logs
-              Center(
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final currentUser = UserService.getCurrentUser();
-                    if (currentUser != null) {
-                      print('🔍 [DEBUG] Usuario actual:');
-                      print('🔍 [DEBUG] ${currentUser.toMap()}');
-                      print('🔍 [DEBUG] ID Cliente: ${currentUser.idCliente}');
-                      print('🔍 [DEBUG] Fuente: ${currentUser.idCliente != null ? "API" : "HIVE"}');
-                      
-                      // Intentar sincronizar en segundo plano
-                      print('🔄 [DEBUG] Iniciando sincronización en segundo plano...');
-                      await UserService.syncUserByEmailInBackground(currentUser.email);
-                      
-                      // Refrescar la pantalla
-                      setState(() {});
-                    }
-                  },
-                  icon: const Icon(Icons.bug_report),
-                                        label: const Text('Debug - Sincronizar con API'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.grey,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Botón guardar
-              if (isEditing)
-                Center(
-                  child: SizedBox(
-                    width: 220,
-                    child: ElevatedButton(
-                      onPressed: isSaving ? null : _saveChanges,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFB47EDB),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Banner de Edición
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      child: isEditing
+                          ? Container(
+                        margin: const EdgeInsets.only(bottom: 24),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: accentCyan.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: accentCyan.withOpacity(0.3)),
                         ),
-                        disabledBackgroundColor: Colors.grey,
-                      ),
-                      child: isSaving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Text(
-                              'Guardar cambios',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline_rounded, color: accentCyan),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Text("Modifica tus datos de contacto y seguro médico.", style: TextStyle(fontSize: 13)),
                             ),
+                          ],
+                        ),
+                      )
+                          : const SizedBox.shrink(),
                     ),
-                  ),
-                ),
-              const SizedBox(height: 40),
-              // Logo de Certiva
-              Center(
-                child: Image.asset(
-                  'assets/icons/logo_color.png',
-                  width: 151,
-                  height: 76,
-                  fit: BoxFit.contain,
+
+                    _buildSectionTitle('Datos Personales'),
+                    _buildModernContainer(
+                      child: Column(
+                        children: [
+                          _buildProfileItem(icon: Icons.badge_outlined, label: 'Cédula de Identidad', value: cedulaController.text),
+                          Divider(color: Colors.grey.shade200, height: 1),
+                          _buildProfileItem(icon: Icons.email_outlined, label: 'Correo Electrónico', value: emailController.text),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    _buildSectionTitle('Contacto y Facturación'),
+                    _buildModernContainer(
+                      isEditableZone: isEditing,
+                      child: Column(
+                        children: [
+                          isEditing
+                              ? _buildEditableField(label: 'Número de celular', controller: celularController, icon: Icons.phone_iphone_outlined, keyboardType: TextInputType.phone)
+                              : _buildProfileItem(icon: Icons.phone_iphone_outlined, label: 'Número de celular', value: celularController.text),
+
+                          if (isEditing) const SizedBox(height: 16),
+                          if (!isEditing) Divider(color: Colors.grey.shade200, height: 1),
+
+                          isEditing
+                              ? _buildPrepagaDropdown()
+                              : _buildProfileItem(icon: Icons.health_and_safety_outlined, label: 'Seguro Médico', value: nombrePrepagaActual),
+
+                          if (isEditing) const SizedBox(height: 16),
+                          if (!isEditing) Divider(color: Colors.grey.shade200, height: 1),
+
+                          isEditing
+                              ? _buildEditableField(label: 'Dirección particular', controller: direccionController, icon: Icons.location_on_outlined, maxLines: 2)
+                              : _buildProfileItem(icon: Icons.location_on_outlined, label: 'Dirección particular', value: direccionController.text),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Botón Guardar Cambios
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 300),
+                      opacity: isEditing ? 1.0 : 0.0,
+                      child: Visibility(
+                        visible: isEditing,
+                        child: Container(
+                          height: 55,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(color: primaryPurple.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 5)),
+                            ],
+                          ),
+                          child: ElevatedButton(
+                            onPressed: isSaving ? null : _saveChanges,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryPurple,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: isSaving
+                                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                                : const Text('Guardar Cambios', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // --- SECCIÓN: ELIMINAR CUENTA ---
+                    if (!isEditing) ...[
+                      const SizedBox(height: 20),
+                      _buildSectionTitle('Privacidad y Seguridad'),
+                      GestureDetector(
+                        onTap: _showDeleteAccountDialog,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: dangerRed.withOpacity(0.3)),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(color: dangerRed.withOpacity(0.1), shape: BoxShape.circle),
+                                child: Icon(Icons.delete_outline_rounded, color: dangerRed),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Eliminar mi cuenta', style: TextStyle(color: dangerRed, fontWeight: FontWeight.bold, fontSize: 16)),
+                                    const SizedBox(height: 2),
+                                    Text('Borrar permanentemente todos tus datos.', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey.shade400),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 48),
+
+                    // Logo Final
+                    Center(
+                      child: Opacity(
+                        opacity: 0.5,
+                        child: Image.asset('assets/icons/logo_color.png', width: 120, fit: BoxFit.contain),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                  ],
                 ),
               ),
             ],
@@ -510,141 +560,100 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
     );
   }
 
-  Widget _buildDataField({
-    required String label,
-    required TextEditingController controller,
-    required bool enabled,
-    TextInputType? keyboardType,
-    bool isReadOnly = false, // Nuevo parámetro para campos de solo lectura
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.grey,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: controller,
-                enabled: enabled,
-                keyboardType: keyboardType,
-                style: TextStyle(
-                  color: isReadOnly ? Colors.grey : Colors.black87,
-                  fontSize: 16,
-                ),
-                decoration: InputDecoration(
-                  border: UnderlineInputBorder(
-                    borderSide: BorderSide(color: isReadOnly ? Colors.grey : Color(0xFF09D5D6)),
-                  ),
-                  disabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: isReadOnly ? Colors.grey : Color(0xFF09D5D6)),
-                  ),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: isReadOnly ? Colors.grey : Color(0xFF09D5D6)),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF09D5D6), width: 2),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                ),
-                validator: enabled && !isReadOnly ? (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Campo obligatorio';
-                  }
-                  return null;
-                } : null,
-              ),
-            ),
-            if (!enabled && !isReadOnly)
-              const Icon(
-                Icons.edit,
-                color: Color(0xFF09D5D6),
-                size: 20,
-              ),
-            if (isReadOnly)
-              const Icon(
-                Icons.lock,
-                color: Colors.grey,
-                size: 20,
-              ),
-          ],
-        ),
-      ],
+  // --- WIDGETS MODERNOS DE APOYO ---
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      child: Text(
+        title,
+        style: TextStyle(color: textDark, fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+      ),
     );
   }
 
-  Widget _buildSexoDropdown() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Sexo',
-          style: TextStyle(
-            color: Colors.grey,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: DropdownButtonFormField<String>(
-                value: selectedSexo,
-                decoration: InputDecoration(
-                  border: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF09D5D6)),
-                  ),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF09D5D6)),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFF09D5D6), width: 2),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(vertical: 8),
-                ),
-                items: [
-                  const DropdownMenuItem<String>(
-                    value: null,
-                    child: Text('Seleccionar...', style: TextStyle(color: Colors.grey)),
-                  ),
-                  const DropdownMenuItem<String>(
-                    value: '1',
-                    child: Text('MASCULINO'),
-                  ),
-                  const DropdownMenuItem<String>(
-                    value: '2',
-                    child: Text('FEMENINO'),
-                  ),
-                ],
-                onChanged: isEditing
-                    ? (String? value) {
-                        setState(() {
-                          selectedSexo = value;
-                        });
-                      }
-                    : null,
-                style: TextStyle(
-                  color: isEditing ? Colors.black87 : Colors.grey,
-                  fontSize: 16,
-                ),
-              ),
+  Widget _buildModernContainer({required Widget child, bool isEditableZone = false}) {
+    return Container(
+      padding: EdgeInsets.all(isEditableZone ? 20 : 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5)),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  // Diseño limpio para datos de solo lectura
+  Widget _buildProfileItem({required IconData icon, required String label, required String value}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, color: textGrey, size: 24),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 4),
+                Text(value.isEmpty ? 'No especificado' : value, style: TextStyle(color: textDark, fontSize: 15, fontWeight: FontWeight.w600)),
+              ],
             ),
-            if (!isEditing)
-              const Icon(
-                Icons.edit,
-                color: Color(0xFF09D5D6),
-                size: 20,
-              ),
-          ],
-        ),
-      ],
+          ),
+          Icon(Icons.lock_outline_rounded, color: Colors.grey.shade300, size: 16),
+        ],
+      ),
+    );
+  }
+
+  // Inputs modernos sin bordes duros
+  Widget _buildEditableField({required String label, required TextEditingController controller, required IconData icon, TextInputType? keyboardType, int maxLines = 1}) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      style: TextStyle(color: textDark, fontSize: 15, fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: textGrey),
+        floatingLabelStyle: TextStyle(color: primaryPurple, fontWeight: FontWeight.bold),
+        prefixIcon: Icon(icon, color: primaryPurple),
+        filled: true,
+        fillColor: inputFillColor,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: primaryPurple, width: 1.5)),
+      ),
+      validator: (value) => (value == null || value.trim().isEmpty) ? 'Campo obligatorio' : null,
+    );
+  }
+
+  Widget _buildPrepagaDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedPrepagaId,
+      icon: Icon(Icons.keyboard_arrow_down_rounded, color: primaryPurple),
+      items: _listaPrepagas.map((prepaga) {
+        return DropdownMenuItem(value: prepaga.id, child: Text(prepaga.nombre, overflow: TextOverflow.ellipsis));
+      }).toList(),
+      onChanged: (val) => setState(() => _selectedPrepagaId = val),
+      decoration: InputDecoration(
+        labelText: 'Seguro Médico',
+        labelStyle: TextStyle(color: textGrey),
+        floatingLabelStyle: TextStyle(color: primaryPurple, fontWeight: FontWeight.bold),
+        prefixIcon: Icon(Icons.health_and_safety_outlined, color: primaryPurple),
+        filled: true,
+        fillColor: inputFillColor,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: primaryPurple, width: 1.5)),
+      ),
+      validator: (value) => value == null ? 'Seleccione un seguro' : null,
+      hint: _isLoadingPrepagas ? const Text('Cargando...') : const Text('Seleccione...'),
     );
   }
 }

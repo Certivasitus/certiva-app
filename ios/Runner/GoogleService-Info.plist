@@ -2,18 +2,24 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>625182682363-v283q7gp7n5q5hq3ajrh9sb3bd66toek.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.625182682363-v283q7gp7n5q5hq3ajrh9sb3bd66toek</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>625182682363-vo1mp06r8t2jlst8m0or5j92cpk09pqt.apps.googleusercontent.com</string>
 	<key>API_KEY</key>
-	<string>AIzaSyDugWdBLPGwXW5_p22Kn-s_f_aN2QmWraE</string>
+	<string>AIzaSyCHFdQO29F0_mZbOt2g2X1PXzspquYAO_Y</string>
 	<key>GCM_SENDER_ID</key>
-	<string>644848548106</string>
+	<string>625182682363</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>py.com.certiva.app</string>
+	<string>com.certivaclinica.app</string>
 	<key>PROJECT_ID</key>
-	<string>certiva-crashlytics</string>
+	<string>certiva-51c59</string>
 	<key>STORAGE_BUCKET</key>
-	<string>certiva-crashlytics.firebasestorage.app</string>
+	<string>certiva-51c59.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:644848548106:ios:63536142d1bd894a5822f3</string>
+	<string>1:625182682363:ios:26288aa66dd953de8f545e</string>
 </dict>
 </plist>

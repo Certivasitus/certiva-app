@@ -1,20 +1,14 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'api_client.dart';
 
 class CertivaApiService {
-  static const String baseUrl = 'https://kove.app.kove.com.py/ords/certiva_situs';
-  static const String username = 'CERTIVA_APP';
-  static const String password = 'CerTiva2028*';
+  static final CertivaApiService _instance = CertivaApiService._internal();
+  factory CertivaApiService() => _instance;
+  CertivaApiService._internal();
 
-  // Codificar credenciales para Basic Auth
-  static String get _basicAuth {
-    final credentials = '$username:$password';
-    final bytes = utf8.encode(credentials);
-    final base64Credentials = base64.encode(bytes);
-    return 'Basic $base64Credentials';
-  }
+  static const String _endpointRegistro = '/app/registrar_cliente';
 
-  static Future<Map<String, dynamic>> registrarCliente({
+  /// Registra un nuevo cliente consumiendo el procedimiento [pr_crear_cuenta_json] en Oracle APEX.
+  Future<Map<String, dynamic>> registrarCliente({
     required String email,
     required String password,
     required String nombre,
@@ -24,86 +18,61 @@ class CertivaApiService {
     required String direccion,
     required String telefono,
   }) async {
-    try {
-      final url = Uri.parse('$baseUrl/app/registrar_cliente');
-      
-      final body = {
-        'email': email,
-        'password': password,
-        'nombre': nombre,
-        'apellido': apellido,
-        'autenticacion': 'CORREO',
-        'cedula': cedula,
-        'prepaga': prepaga,
-        'direccion': direccion,
-        'telefono': telefono,
-      };
 
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': _basicAuth,
-        },
-        body: jsonEncode(body),
-      );
+    // Se eliminan caracteres no numéricos para cumplir con el tipo NUMBER(20) de Oracle
+    final telefonoLimpio = telefono.replaceAll(RegExp(r'[^0-9]'), '');
 
-      final responseData = jsonDecode(response.body);
+    final body = {
+      'email': email,
+      'password': password,
+      'nombre': nombre,
+      'apellido': apellido,
+      'autenticacion': 'CORREO', // Valor fijo exigido por la lógica de negocio en BD
+      'cedula': cedula,
+      'prepaga': prepaga,
+      'direccion': direccion,
+      'telefono': telefonoLimpio,
+    };
 
-      if (response.statusCode == 200) {
-        // Registro exitoso
+    print('🚀 [CertivaApi] POST $_endpointRegistro | Body: $body');
+
+    final response = await ApiClient.post(_endpointRegistro, body);
+
+    if (response != null) {
+      // Evaluación de la respuesta estructurada desde APEX
+      if (response['status'] == 'success') {
         return {
           'success': true,
-          'data': responseData,
-          'message': 'Cliente registrado exitosamente: ${responseData['nombre_cliente']}',
+          'data': response,
+          'message': 'Cliente registrado: ${response['nombre_cliente']}',
         };
       } else {
-        // Error del servidor
+        // Captura de errores de validación de negocio (ej. correos duplicados - Error 400)
         return {
           'success': false,
-          'error': responseData['description'] ?? 'Error desconocido',
-          'code': responseData['code'] ?? '500',
+          'error': response['mensaje'] ?? response['description'] ?? 'Error al registrar cliente',
+          'code': response['codigo']?.toString() ?? 'API_ERROR',
         };
       }
-    } catch (e) {
-      // Error de conexión o parsing
+    } else {
+      // Fallo a nivel de red, timeout o error 500 no capturado
       return {
         'success': false,
-        'error': 'Error de conexión: $e',
+        'error': 'No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta de nuevo.',
         'code': 'CONNECTION_ERROR',
       };
     }
   }
-} 
 
-extension CertivaApiServiceExtras on CertivaApiService {
-  static Future<Map<String, dynamic>> getPrepagasActivasRaw() async {
-    try {
-      final url = Uri.parse('${CertivaApiService.baseUrl}/app/registrar_cliente');
-      final response = await http.get(
-        url,
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': CertivaApiService._basicAuth,
-        },
-      );
+  /// Obtiene la lista de prepagas activas.
+  Future<List<Map<String, dynamic>>> getPrepagasActivas() async {
+    final response = await ApiClient.get(_endpointRegistro);
 
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return {'success': true, 'data': data};
-      }
-      return {'success': false, 'error': data};
-    } catch (e) {
-      return {'success': false, 'error': e.toString()};
+    if (response != null && response['prepagas'] != null) {
+      final List list = response['prepagas'];
+      return list.cast<Map<String, dynamic>>();
     }
-  }
 
-  static Future<List<Map<String, dynamic>>> getPrepagasActivas() async {
-    final raw = await getPrepagasActivasRaw();
-    if (raw['success'] == true) {
-      final List prepagas = raw['data']['prepagas'] ?? [];
-      return prepagas.cast<Map<String, dynamic>>();
-    }
     return [];
   }
-} 
+}

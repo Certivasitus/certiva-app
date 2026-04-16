@@ -1,5 +1,5 @@
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+// import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user.dart';
 import 'client_api_service.dart';
@@ -9,101 +9,89 @@ class UserService {
   static const String _currentUserKey = 'currentUser';
   static const String _loginCredentialsKey = 'loginCredentials';
 
-  static Future<void> init() async {
+  static Future<void> init([bool firebaseInitialized = false]) async {
     final startTime = DateTime.now();
     final initLog = '📦 [UserService] Iniciando inicialización de Hive - ${startTime.toIso8601String()}';
-    FirebaseCrashlytics.instance.log(initLog);
+    // FirebaseCrashlytics.instance.log(initLog);
     debugPrint(initLog);
     
     try {
-      FirebaseCrashlytics.instance.log('📦 [UserService] Paso 1/5: Llamando Hive.initFlutter()...');
       debugPrint('📦 [UserService] Paso 1/5: Llamando Hive.initFlutter()...');
       final beforeInitFlutter = DateTime.now();
       await Hive.initFlutter();
       final afterInitFlutter = DateTime.now();
       final initFlutterDuration = afterInitFlutter.difference(beforeInitFlutter);
       final successLog = '✅ [UserService] Hive.initFlutter() completado en ${initFlutterDuration.inMilliseconds}ms';
-      FirebaseCrashlytics.instance.log(successLog);
+      // FirebaseCrashlytics.instance.log(successLog);
       debugPrint(successLog);
       
-      FirebaseCrashlytics.instance.log('📦 [UserService] Paso 2/5: Registrando UserAdapter...');
       debugPrint('📦 [UserService] Paso 2/5: Registrando UserAdapter...');
       final beforeAdapter = DateTime.now();
       Hive.registerAdapter(UserAdapter());
       final afterAdapter = DateTime.now();
       final adapterDuration = afterAdapter.difference(beforeAdapter);
       final adapterLog = '✅ [UserService] UserAdapter registrado en ${adapterDuration.inMilliseconds}ms';
-      FirebaseCrashlytics.instance.log(adapterLog);
+      // FirebaseCrashlytics.instance.log(adapterLog);
       debugPrint(adapterLog);
       
-      FirebaseCrashlytics.instance.log('📦 [UserService] Paso 3/5: Abriendo box de usuarios...');
       debugPrint('📦 [UserService] Paso 3/5: Abriendo box de usuarios...');
       final beforeUsersBox = DateTime.now();
       await Hive.openBox<User>(_boxName);
       final afterUsersBox = DateTime.now();
       final usersBoxDuration = afterUsersBox.difference(beforeUsersBox);
       final usersBoxLog = '✅ [UserService] Box de usuarios abierto en ${usersBoxDuration.inMilliseconds}ms';
-      FirebaseCrashlytics.instance.log(usersBoxLog);
+      // FirebaseCrashlytics.instance.log(usersBoxLog);
       debugPrint(usersBoxLog);
       
-      FirebaseCrashlytics.instance.log('📦 [UserService] Paso 4/5: Abriendo box de usuario actual...');
       debugPrint('📦 [UserService] Paso 4/5: Abriendo box de usuario actual...');
       final beforeCurrentUserBox = DateTime.now();
       await Hive.openBox(_currentUserKey);
       final afterCurrentUserBox = DateTime.now();
       final currentUserBoxDuration = afterCurrentUserBox.difference(beforeCurrentUserBox);
       final currentUserBoxLog = '✅ [UserService] Box de usuario actual abierto en ${currentUserBoxDuration.inMilliseconds}ms';
-      FirebaseCrashlytics.instance.log(currentUserBoxLog);
+      // FirebaseCrashlytics.instance.log(currentUserBoxLog);
       debugPrint(currentUserBoxLog);
       
-      FirebaseCrashlytics.instance.log('📦 [UserService] Paso 5/5: Abriendo box de credenciales...');
       debugPrint('📦 [UserService] Paso 5/5: Abriendo box de credenciales...');
       final beforeCredentialsBox = DateTime.now();
       await Hive.openBox(_loginCredentialsKey);
       final afterCredentialsBox = DateTime.now();
       final credentialsBoxDuration = afterCredentialsBox.difference(beforeCredentialsBox);
       final credentialsBoxLog = '✅ [UserService] Box de credenciales abierto en ${credentialsBoxDuration.inMilliseconds}ms';
-      FirebaseCrashlytics.instance.log(credentialsBoxLog);
+      // FirebaseCrashlytics.instance.log(credentialsBoxLog);
       debugPrint(credentialsBoxLog);
       
       final endTime = DateTime.now();
       final totalDuration = endTime.difference(startTime);
       final totalLog = '✅ [UserService] Inicialización de Hive completada exitosamente en ${totalDuration.inMilliseconds}ms';
-      FirebaseCrashlytics.instance.log(totalLog);
+      // FirebaseCrashlytics.instance.log(totalLog);
       debugPrint(totalLog);
     } catch (e, stackTrace) {
       final errorTime = DateTime.now();
       final errorDuration = errorTime.difference(startTime);
       final errorLog = '❌ [UserService] Error inicializando Hive después de ${errorDuration.inMilliseconds}ms';
-      FirebaseCrashlytics.instance.log(errorLog);
+      // FirebaseCrashlytics.instance.log(errorLog);
       debugPrint(errorLog);
-      FirebaseCrashlytics.instance.log('❌ [UserService] Error: $e');
+      // FirebaseCrashlytics.instance.log('❌ [UserService] Error: $e');
       debugPrint('❌ [UserService] Error: $e');
-      FirebaseCrashlytics.instance.recordError(e, stackTrace, fatal: false);
+      // FirebaseCrashlytics.instance.recordError(e, stackTrace, fatal: false);
       debugPrint('❌ [UserService] Stack trace: $stackTrace');
       
       // Reintentar después de un delay más largo
-      FirebaseCrashlytics.instance.log('⏳ [UserService] Esperando 500ms antes del segundo intento...');
       debugPrint('⏳ [UserService] Esperando 500ms antes del segundo intento...');
       await Future.delayed(const Duration(milliseconds: 500));
       
-      FirebaseCrashlytics.instance.log('🔄 [UserService] Segundo intento de inicialización...');
       debugPrint('🔄 [UserService] Segundo intento de inicialización...');
       try {
         final secondStartTime = DateTime.now();
-        FirebaseCrashlytics.instance.log('📦 [UserService] Segundo intento - Llamando Hive.initFlutter()...');
         debugPrint('📦 [UserService] Segundo intento - Llamando Hive.initFlutter()...');
         await Hive.initFlutter();
-        FirebaseCrashlytics.instance.log('✅ [UserService] Segundo intento - Hive.initFlutter() completado');
         debugPrint('✅ [UserService] Segundo intento - Hive.initFlutter() completado');
         
-        FirebaseCrashlytics.instance.log('📦 [UserService] Segundo intento - Registrando UserAdapter...');
         debugPrint('📦 [UserService] Segundo intento - Registrando UserAdapter...');
         Hive.registerAdapter(UserAdapter());
-        FirebaseCrashlytics.instance.log('✅ [UserService] Segundo intento - UserAdapter registrado');
         debugPrint('✅ [UserService] Segundo intento - UserAdapter registrado');
         
-        FirebaseCrashlytics.instance.log('📦 [UserService] Segundo intento - Abriendo boxes...');
         debugPrint('📦 [UserService] Segundo intento - Abriendo boxes...');
         await Hive.openBox<User>(_boxName);
         await Hive.openBox(_currentUserKey);
@@ -112,17 +100,17 @@ class UserService {
         final secondEndTime = DateTime.now();
         final secondDuration = secondEndTime.difference(secondStartTime);
         final secondSuccessLog = '✅ [UserService] Segundo intento exitoso en ${secondDuration.inMilliseconds}ms';
-        FirebaseCrashlytics.instance.log(secondSuccessLog);
+        // FirebaseCrashlytics.instance.log(secondSuccessLog);
         debugPrint(secondSuccessLog);
       } catch (e2, stackTrace2) {
         final finalErrorTime = DateTime.now();
         final finalDuration = finalErrorTime.difference(startTime);
         final finalErrorLog = '❌ [UserService] Error en segundo intento después de ${finalDuration.inMilliseconds}ms total';
-        FirebaseCrashlytics.instance.log(finalErrorLog);
+        // FirebaseCrashlytics.instance.log(finalErrorLog);
         debugPrint(finalErrorLog);
-        FirebaseCrashlytics.instance.log('❌ [UserService] Error: $e2');
+        // FirebaseCrashlytics.instance.log('❌ [UserService] Error: $e2');
         debugPrint('❌ [UserService] Error: $e2');
-        FirebaseCrashlytics.instance.recordError(e2, stackTrace2, fatal: false);
+        // FirebaseCrashlytics.instance.recordError(e2, stackTrace2, fatal: false);
         debugPrint('❌ [UserService] Stack trace: $stackTrace2');
         // Lanzar el error para que la app sepa que Hive no está disponible
         rethrow;
