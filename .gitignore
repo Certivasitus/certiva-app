@@ -46,3 +46,7 @@ app.*.map.json
 
 # Archivos de entorno
 .env
+
+# Archivos key
+.keystore
+.jks
