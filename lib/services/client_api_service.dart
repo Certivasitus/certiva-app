@@ -49,11 +49,17 @@ class ClientApiService {
     return null;
   }
 
-  // Obtener ID por email
-  static Future<int?> getClientIdByEmail(String email) async {
+  // Obtener respuesta de autenticación por email (para Google Login y verificaciones)
+  static Future<Map<String, dynamic>?> getAuthResponseByEmail(String email) async {
     final responseData = await ApiClient.post('/app/post_autenticacion', {
       'email': email,
     });
+    return responseData;
+  }
+
+  // Obtener ID por email
+  static Future<int?> getClientIdByEmail(String email) async {
+    final responseData = await getAuthResponseByEmail(email);
 
     if (responseData != null &&
         responseData['status'] == 'success' &&
@@ -242,4 +248,3 @@ class ClientApiService {
     }
   }
 }
-

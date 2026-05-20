@@ -126,15 +126,27 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
   // --- LÓGICA DE ELIMINACIÓN DE CUENTA ---
 
   void _showDeleteAccountDialog() {
+    final currentUser = UserService.getCurrentUser();
+    final expectedEmail = currentUser?.email.trim() ?? '';
+
+    if (expectedEmail.isEmpty) {
+      CustomSnackBar.showError(
+        context,
+        message: 'No se pudo obtener el correo de la sesión activa.',
+        title: 'Error de sesión',
+      );
+      return;
+    }
+
     final TextEditingController confirmController = TextEditingController();
-    const String verificationCode = "ELIMINAR";
 
     showDialog(
       context: context,
       builder: (context) {
         return StatefulBuilder(
             builder: (context, setStateDialog) {
-              bool isButtonEnabled = confirmController.text.trim() == verificationCode;
+              final typed = confirmController.text.trim().toLowerCase();
+              bool isButtonEnabled = typed == expectedEmail.toLowerCase();
 
               return AlertDialog(
                 insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -169,15 +181,17 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Para confirmar, escribe "$verificationCode":',
+                      'Para confirmar, escribe tu correo electrónico:',
                       style: TextStyle(fontWeight: FontWeight.w600, color: textDark, fontSize: 13),
                     ),
                     const SizedBox(height: 10),
                     TextField(
                       controller: confirmController,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
                       onChanged: (value) => setStateDialog(() {}),
                       decoration: InputDecoration(
-                        hintText: verificationCode,
+                        hintText: 'correo@ejemplo.com',
                         hintStyle: TextStyle(color: Colors.grey.shade400),
                         isDense: true,
                         filled: true,

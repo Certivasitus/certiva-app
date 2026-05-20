@@ -66,10 +66,25 @@ class ApiClient {
     }
   }
 
+  static void _logResponseBody(http.Response response) {
+    if (response.body.isEmpty) {
+      print('📄 [ApiClient] Respuesta vacía');
+      return;
+    }
+    try {
+      final decoded = jsonDecode(response.body);
+      const encoder = JsonEncoder.withIndent('  ');
+      print('📄 [ApiClient] JSON respuesta:\n${encoder.convert(decoded)}');
+    } catch (_) {
+      print('📄 [ApiClient] Respuesta (no JSON): ${response.body}');
+    }
+  }
+
   /// Procesa la respuesta HTTP y decodifica el JSON.
   /// En caso de error (400/500), intenta extraer el mensaje de validación de APEX.
   static dynamic _processResponse(http.Response response) {
     print('📥 [STATUS] ${response.statusCode}');
+    _logResponseBody(response);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       try {
@@ -85,7 +100,6 @@ class ApiClient {
     } else {
       print('❌ [ApiClient] Error HTTP ${response.statusCode}');
       try {
-        // Retornamos el JSON del error para leer los mensajes descriptivos del backend
         return jsonDecode(response.body);
       } catch (e) {
         print('⚠️ [ApiClient] La respuesta de error no es un JSON válido.');

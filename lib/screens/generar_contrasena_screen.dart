@@ -2,23 +2,34 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/user_service.dart';
 import '../services/certiva_api_service.dart';
+import 'verification_otp_screen.dart';
 
 class GenerarContrasenaScreen extends StatefulWidget {
   final User user;
   final int prepagaCode;
-  const GenerarContrasenaScreen({Key? key, required this.user, required this.prepagaCode}) : super(key: key);
+
+  const GenerarContrasenaScreen({
+    Key? key,
+    required this.user,
+    required this.prepagaCode,
+  }) : super(key: key);
 
   @override
   State<GenerarContrasenaScreen> createState() => _GenerarContrasenaScreenState();
 }
 
 class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
+  final Color _primaryLilac = const Color(0xFFB47EDB);
+  final Color _onSurface = const Color(0xFF1F1F1F);
+  final Color _onSurfaceVariant = const Color(0xFF6B6E75);
+  final Color _inputFillColor = const Color(0xFFF4F6F9);
+
   final TextEditingController passwordController = TextEditingController();
   final TextEditingController repeatPasswordController = TextEditingController();
-  bool showPassword = false;
-  bool showRepeatPassword = false;
+  bool _obscurePassword = true;
+  bool _obscureRepeatPassword = true;
+  bool _isLoading = false;
 
-  // Variables para la complejidad de la contraseña
   double _passwordStrength = 0.0;
   String _passwordStrengthLabel = 'Baja';
   Color _passwordStrengthColor = Colors.red;
@@ -26,7 +37,6 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
   @override
   void initState() {
     super.initState();
-    // Escuchar cambios en el controlador de la contraseña
     passwordController.addListener(_checkPasswordStrength);
   }
 
@@ -38,9 +48,8 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
     super.dispose();
   }
 
-  // Lógica para evaluar la contraseña
   void _checkPasswordStrength() {
-    String password = passwordController.text;
+    final password = passwordController.text;
     double strength = 0.0;
 
     if (password.isEmpty) {
@@ -52,19 +61,15 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
       return;
     }
 
-    // Regla 1: Longitud mayor a 6 caracteres
     if (password.length > 6) strength += 0.25;
-    // Regla 2: Longitud mayor a 10 caracteres
     if (password.length > 10) strength += 0.25;
-    // Regla 3: Contiene al menos un número
     if (password.contains(RegExp(r'[0-9]'))) strength += 0.25;
-    // Regla 4: Contiene al menos una letra mayúscula o un carácter especial
-    if (password.contains(RegExp(r'[A-Z]')) || password.contains(RegExp(r'[!@#\$&*~]'))) strength += 0.25;
+    if (password.contains(RegExp(r'[A-Z]')) || password.contains(RegExp(r'[!@#\$&*~]'))) {
+      strength += 0.25;
+    }
 
-    // Asignar colores y etiquetas basados en el puntaje
     String label;
     Color color;
-
     if (strength <= 0.25) {
       label = 'Baja';
       color = Colors.red;
@@ -76,7 +81,7 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
       color = Colors.lightGreen;
     } else {
       label = 'Alta';
-      color = const Color(0xFF09D5D6); // Cyan
+      color = const Color(0xFF4CAF50);
     }
 
     setState(() {
@@ -86,35 +91,36 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
     });
   }
 
-  void _guardarContrasena() async {
+  void _showSnackBar(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: const TextStyle(color: Colors.white)),
+        backgroundColor: isError ? const Color(0xFFBA1A1A) : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  Future<void> _guardarContrasena() async {
     if (passwordController.text.isEmpty || repeatPasswordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor completa todos los campos')),
-      );
+      _showSnackBar('Por favor completa todos los campos.', isError: true);
       return;
     }
 
     if (passwordController.text != repeatPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Las contraseñas no coinciden')),
-      );
+      _showSnackBar('Las contraseñas no coinciden.', isError: true);
       return;
     }
 
-    // Opcional: Validar que la contraseña sea al menos "Media"
     if (_passwordStrength < 0.5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La contraseña es muy débil. Intenta agregar números o mayúsculas.')),
-      );
+      _showSnackBar('La contraseña es muy débil. Agrega números o mayúsculas.', isError: true);
       return;
     }
 
-    // Loader
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
+    setState(() => _isLoading = true);
+    FocusScope.of(context).unfocus();
 
     try {
       final apiResult = await CertivaApiService().registrarCliente(
@@ -129,10 +135,8 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
       );
 
       if (!mounted) return;
-      Navigator.pop(context); // cerrar loader
 
       if (apiResult['success'] == true) {
-        // Guardar local
         final updatedUser = User(
           nombres: widget.user.nombres,
           apellidos: widget.user.apellidos,
@@ -141,236 +145,204 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
           celular: widget.user.celular,
           email: widget.user.email,
           seguro: widget.user.seguro,
-          password: passwordController.text,
+          password: passwordController.text.trim(),
         );
         await UserService.saveUser(updatedUser);
+
+        if (apiResult['status'] == 'requires_verification') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => VerificationOtpScreen(
+                email: widget.user.email,
+                password: passwordController.text.trim(),
+              ),
+            ),
+          );
+          return;
+        }
+
         UserService.setCurrentUser(updatedUser);
-
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Registro Exitoso'),
-              content: Text(apiResult['message'] ?? 'Usuario registrado correctamente'),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    Navigator.popUntil(context, (route) => route.isFirst);
-                  },
-                  child: const Text('Aceptar'),
-                ),
-              ],
-            ),
-          );
-        }
+        _showSnackBar(apiResult['message'] ?? 'Usuario registrado correctamente.');
+        Navigator.popUntil(context, (route) => route.isFirst);
       } else {
-        // Error backend
-        final errorMsg = apiResult['error'] ?? 'Error desconocido';
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Error en el Registro'),
-              content: Text(errorMsg),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Aceptar'),
-                ),
-              ],
-            ),
-          );
-        }
+        _showSnackBar(apiResult['error'] ?? 'Error al registrar la cuenta.', isError: true);
       }
-    } catch (e, stacktrace) {
-      if (!mounted) return;
-      Navigator.pop(context); // cerrar loader
-
-      print('=== ERROR CAPTURADO EN LA UI ===');
-      print(e);
-      print(stacktrace);
-
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Error de Conexión'),
-          content: Text('Revisa la consola para ver el error exacto.\nDetalle: $e'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Aceptar'),
-            ),
-          ],
-        ),
-      );
+    } catch (e) {
+      _showSnackBar('Error de conexión. Intenta nuevamente.', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Widget _buildPasswordField({
+    required TextEditingController controller,
+    required String hint,
+    required bool obscure,
+    required VoidCallback onToggleVisibility,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: obscure,
+      enabled: !_isLoading,
+      style: TextStyle(color: _onSurface, fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 15, fontWeight: FontWeight.w400),
+        prefixIcon: Icon(Icons.lock_outline_rounded, color: Colors.grey.shade500, size: 22),
+        suffixIcon: IconButton(
+          icon: Icon(
+            obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            color: Colors.grey.shade500,
+          ),
+          onPressed: _isLoading ? null : onToggleVisibility,
+        ),
+        filled: true,
+        fillColor: _isLoading ? Colors.grey.shade200 : _inputFillColor,
+        contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: _primaryLilac.withOpacity(0.5), width: 1.5),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Logo a color
-                Image.asset(
-                  'assets/icons/logo_color.png',
-                  width: 180,
-                ),
-                const SizedBox(height: 18),
-                // Título y saludo
-                Text(
-                  '¡Hola ${widget.user.nombres}!',
-                  style: const TextStyle(
-                    color: Color(0xFF09D5D6),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Favor generar contraseña',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 16,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 28),
-                // Campo contraseña
-                TextField(
-                  controller: passwordController,
-                  obscureText: !showPassword,
-                  decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    labelStyle: const TextStyle(color: Colors.black),
-                    enabledBorder: const UnderlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF09D5D6)),
-                    ),
-                    focusedBorder: const UnderlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF09D5D6), width: 2),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        showPassword ? Icons.visibility : Icons.visibility_off,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          showPassword = !showPassword;
-                        });
-                      },
-                    ),
+      backgroundColor: _primaryLilac,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+        ),
+      ),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: size.height * 0.10,
+              child: Center(
+                child: Hero(
+                  tag: 'logo',
+                  child: Image.asset(
+                    'assets/logo_blanco-removebg-preview.png',
+                    height: 45,
                   ),
                 ),
-                // Indicador de contraseña válido DÍNAMICO
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      passwordController.text.isEmpty ? 'Nivel de seguridad' : 'Contraseña ${_passwordStrengthLabel.toLowerCase()}',
-                      style: TextStyle(
-                        color: _passwordStrengthColor,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: LinearProgressIndicator(
-                        value: _passwordStrength,
-                        backgroundColor: Colors.grey[300],
-                        valueColor: AlwaysStoppedAnimation<Color>(_passwordStrengthColor),
-                        minHeight: 6,
-                        borderRadius: BorderRadius.circular(4), // Opcional: bordes redondeados
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: _passwordStrengthColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        _passwordStrengthLabel,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                // Campo repetir contraseña
-                TextField(
-                  controller: repeatPasswordController,
-                  obscureText: !showRepeatPassword,
-                  decoration: InputDecoration(
-                    labelText: 'Repetir contraseña',
-                    labelStyle: const TextStyle(color: Colors.black),
-                    enabledBorder: const UnderlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF09D5D6)),
-                    ),
-                    focusedBorder: const UnderlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF09D5D6), width: 2),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        showRepeatPassword ? Icons.visibility : Icons.visibility_off,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          showRepeatPassword = !showRepeatPassword;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                // Logo animado (simulado con el logo pequeño)
-                Image.asset(
-                  'assets/icons/logo_color.png',
-                  width: 50,
-                ),
-                const SizedBox(height: 18),
-                // Botón de registro
-                Center(
-                  child: SizedBox(
-                    width: 220,
-                    child: ElevatedButton(
-                      onPressed: _guardarContrasena,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFB47EDB),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      child: const Text(
-                        'Registrarme',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(40),
+                  topRight: Radius.circular(40),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(32, 40, 32, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    '¡Hola, ${widget.user.nombres}!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _onSurface,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Crea una contraseña segura para tu cuenta',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: _onSurfaceVariant, fontSize: 15),
+                  ),
+                  const SizedBox(height: 36),
+                  _buildPasswordField(
+                    controller: passwordController,
+                    hint: 'Contraseña',
+                    obscure: _obscurePassword,
+                    onToggleVisibility: () => setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: _passwordStrength,
+                            backgroundColor: Colors.grey.shade200,
+                            valueColor: AlwaysStoppedAnimation<Color>(_passwordStrengthColor),
+                            minHeight: 6,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        _passwordStrengthLabel,
+                        style: TextStyle(
+                          color: _passwordStrengthColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildPasswordField(
+                    controller: repeatPasswordController,
+                    hint: 'Repetir contraseña',
+                    obscure: _obscureRepeatPassword,
+                    onToggleVisibility: () =>
+                        setState(() => _obscureRepeatPassword = !_obscureRepeatPassword),
+                  ),
+                  const SizedBox(height: 40),
+                  SizedBox(
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: _isLoading ? null : _guardarContrasena,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _primaryLilac,
+                        shape: const StadiumBorder(),
+                        elevation: 0,
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                            )
+                          : const Text(
+                              'Crear cuenta',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                            ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Al continuar, recibirás un código de verificación en tu correo.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

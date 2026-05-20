@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'register_screen.dart';
-import 'bienvenida_screen.dart';
 import 'recuperar_contrasena_screen.dart';
+import 'verification_otp_screen.dart';
 import '../services/user_service.dart';
 import '../services/client_api_service.dart';
-import '../services/security_service.dart';
+import '../services/api_client.dart';
 import '../models/user.dart' as app_user;
 import '../screens/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -34,21 +33,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoadingForm = false;
   bool _isLoadingGoogle = false;
 
-  // --- Biometría ---
-  bool _showBiometricButton = false;
-
-  // Control para no spamear el diálogo si toca el input varias veces
-  bool _biometricPromptShown = false;
-
   @override
   void initState() {
     super.initState();
     _loadSavedCredentials();
-
-    // Auto-lanzar biometría apenas la pantalla termina de cargar
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _autoTriggerBiometrics();
-    });
   }
 
   void _loadSavedCredentials() {
@@ -58,50 +46,6 @@ class _LoginScreenState extends State<LoginScreen> {
         emailController.text = savedCredentials['email'] ?? '';
         passwordController.text = savedCredentials['password'] ?? '';
         rememberMe = true;
-      });
-    }
-  }
-
-  // LÓGICA DE AUTO-LANZAMIENTO ---
-  Future<void> _autoTriggerBiometrics() async {
-    final isSupported = await SecurityService.isBiometricSupported();
-    final isEnabled = await SecurityService.isBiometricEnabled();
-
-    // Si el teléfono tiene huella y el usuario la configuró...
-    if (isSupported && isEnabled && mounted) {
-      setState(() {
-        _showBiometricButton = true; // Mostramos el botón por si cancela
-      });
-
-      // Lanzamos el lector automáticamente
-      await _loginWithBiometrics();
-    }
-  }
-  // --- LÓGICA DE LOGIN CON HUELLA ---
-  Future<void> _loginWithBiometrics() async {
-    final didAuthenticate = await SecurityService.authenticateWithBiometrics();
-    if (didAuthenticate) {
-      final credentials = await SecurityService.getSavedBiometricCredentials();
-      if (credentials != null) {
-        // Ponemos las credenciales en los inputs y disparamos el login manual
-        setState(() {
-          emailController.text = credentials['email']!;
-          passwordController.text = credentials['password']!;
-        });
-        _login(); // Inicia sesión silenciosamente
-      } else {
-        _showErrorSnackBar('No se encontraron credenciales guardadas.');
-      }
-    }
-  }
-
-  Future<void> _checkBiometricStatus() async {
-    final isSupported = await SecurityService.isBiometricSupported();
-    final isEnabled = await SecurityService.isBiometricEnabled();
-
-    if (isSupported && isEnabled && mounted) {
-      setState(() {
-        _showBiometricButton = true;
       });
     }
   }
@@ -121,57 +65,33 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = emailController.text.trim();
     final password = passwordController.text;
 
-    final url = Uri.parse('https://kove.app.kove.com.py/ords/certiva_situs/app/autenticacion');
-    final String rawAuth = '${Uri.encodeComponent('CERTIVA_APP')}:${Uri.encodeComponent('CerTiva2028*')}';
-    final basicAuth = 'Basic ' + base64Encode(utf8.encode(rawAuth));
-
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': basicAuth,
-        },
-        body: jsonEncode({
-          'username': email,
-          'password': password,
-        }),
-      );
+      final responseData = await ApiClient.post('/app/autenticacion', {
+        'username': email,
+        'password': password,
+      });
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-
+      if (responseData != null) {
+        // CASO 1: Éxito total
         if (responseData['status'] == 'success' && responseData['autenticado'] == true) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.remove('google_photo_url');
-
-          if (rememberMe) {
-            await UserService.saveLoginCredentials(email, password);
-          } else {
-            await UserService.clearLoginCredentials();
-          }
-
-          app_user.User? userToSet = await ClientApiService.getClientByEmail(email);
-          if (userToSet == null) {
-            userToSet = await UserService.getUserByEmail(email);
-          }
-
-          if (userToSet != null) {
-            await UserService.saveUser(userToSet);
-            UserService.setCurrentUser(userToSet);
-
-            if (mounted) {
-              setState(() => _isLoadingForm = false);
-              await _askForBiometricSetup(email, password);
-              if (mounted) {
-                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
-              }
-            }
-            return;
-          } else {
-            _showErrorSnackBar('No se pudieron obtener los datos de la cuenta.');
+          await _processSuccessfulLogin(email, password);
+        }
+        // CASO 2: Cuenta no verificada (OTP pendiente)
+        else if (responseData['status'] == 'unverified') {
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => VerificationOtpScreen(
+                  email: email,
+                  isFromLogin: true,
+                  password: password,
+                ),
+              ),
+            );
           }
         }
+        // CASO 3: Cuenta bloqueada
         else if (responseData['status'] == 'blocked') {
           final int idCliente = responseData['id_cliente'];
           setState(() => _isLoadingForm = false);
@@ -185,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
           _showErrorSnackBar(responseData['mensaje'] ?? 'Usuario o contraseña incorrectos');
         }
       } else {
-        _showErrorSnackBar('Error de conexión (HTTP ${response.statusCode})');
+        _showErrorSnackBar('Error de conexión con el servidor.');
       }
     } catch (e) {
       _showErrorSnackBar('Error al iniciar sesión: Verifica tu conexión');
@@ -194,51 +114,30 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _askForBiometricSetup(String email, String password) async {
-    final isSupported = await SecurityService.isBiometricSupported();
-    final isAlreadyEnabled = await SecurityService.isBiometricEnabled();
+  Future<void> _processSuccessfulLogin(String email, String password) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('google_photo_url');
 
-    if (isSupported && !isAlreadyEnabled && mounted) {
-      final quiereActivar = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: Row(
-              children: [
-                Icon(Icons.fingerprint_rounded, color: _primaryLilac, size: 28),
-                const SizedBox(width: 10),
-                const Text('Inicio rápido', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              ],
-            ),
-            content: const Text(
-              '¿Deseas activar el inicio de sesión con huella digital / reconocimiento facial para la próxima vez?',
-              style: TextStyle(fontSize: 15),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text('Ahora no', style: TextStyle(color: _onSurfaceVariant)),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: _primaryLilac),
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Sí, activar', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
-          );
-        },
-      );
+    if (rememberMe) {
+      await UserService.saveLoginCredentials(email, password);
+    } else {
+      await UserService.clearLoginCredentials();
+    }
 
-      if (quiereActivar == true) {
-        await SecurityService.enableBiometricLogin(email, password);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Inicio de sesión biométrico activado.'), backgroundColor: Colors.green),
-          );
-        }
+    app_user.User? userToSet = await ClientApiService.getClientByEmail(email);
+    if (userToSet == null) {
+      userToSet = await UserService.getUserByEmail(email);
+    }
+
+    if (userToSet != null) {
+      await UserService.saveUser(userToSet);
+      UserService.setCurrentUser(userToSet);
+
+      if (mounted) {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
       }
+    } else {
+      _showErrorSnackBar('No se pudieron obtener los datos de la cuenta.');
     }
   }
 
@@ -275,9 +174,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      final app_user.User? userFromApi = await ClientApiService.getClientByEmail(email);
+      final authData = await ClientApiService.getAuthResponseByEmail(email);
 
-      if (userFromApi == null) {
+      if (authData == null) {
         try { await GoogleSignIn().signOut(); } catch (_) {}
         if (mounted) {
           setState(() => _isLoadingGoogle = false);
@@ -286,7 +185,19 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      if (userFromApi.idCliente != null) {
+      // Validar si requiere verificación (OTP)
+      if (authData['status'] == 'unverified') {
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => VerificationOtpScreen(email: email, isFromLogin: true)),
+          );
+        }
+        return;
+      }
+
+      final app_user.User? userFromApi = await ClientApiService.getClientByEmail(email);
+      if (userFromApi != null && userFromApi.idCliente != null) {
         final estaBloqueado = await ClientApiService.isAccountBlocked(userFromApi.idCliente!);
         if (estaBloqueado) {
           setState(() => _isLoadingGoogle = false);
@@ -300,11 +211,12 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      await UserService.saveUser(userFromApi);
-      UserService.setCurrentUser(userFromApi);
-
-      if (mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+      if (userFromApi != null) {
+        await UserService.saveUser(userFromApi);
+        UserService.setCurrentUser(userFromApi);
+        if (mounted) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+        }
       }
     } catch (e) {
       _showErrorSnackBar('Error validando usuario: $e');
@@ -409,20 +321,17 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // --- WIDGET HELPER PARA INPUTS MINIMALISTAS ---
-  // 👇 NUEVO: Se agregó parámetro onTap opcional
   Widget _buildMinimalField({
     required TextEditingController controller,
     required String hint,
     required IconData icon,
     bool isPassword = false,
     bool enabled = true,
-    VoidCallback? onTap, // <-- Permite disparar acciones al tocar el campo
   }) {
     return TextFormField(
       controller: controller,
       obscureText: isPassword ? _obscurePassword : false,
       enabled: enabled,
-      onTap: onTap, // <-- Asignamos el evento
       style: TextStyle(color: _onSurface, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         hintText: hint,
@@ -491,21 +400,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 36),
 
-                  // 👇 CAMBIO AQUÍ: Evento onTap en el campo de correo 👇
                   _buildMinimalField(
                     controller: emailController,
                     hint: 'Correo electrónico',
                     icon: Icons.email_outlined,
                     enabled: !_isLoadingForm && !_isLoadingGoogle,
-                    onTap: () {
-                      // Si la biometría está activa y no se ha mostrado aún el diálogo
-                      if (_showBiometricButton && !_biometricPromptShown) {
-                        setState(() => _biometricPromptShown = true); // Marcamos como mostrado
-                        // Quitamos el foco para que no se levante el teclado si usa la huella
-                        FocusScope.of(context).unfocus();
-                        _loginWithBiometrics();
-                      }
-                    },
                   ),
                   const SizedBox(height: 16),
                   _buildMinimalField(
@@ -564,25 +463,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
-
-                      if (_showBiometricButton) ...[
-                        const SizedBox(width: 12),
-                        SizedBox(
-                          height: 56,
-                          width: 56,
-                          child: FilledButton(
-                            onPressed: (_isLoadingForm || _isLoadingGoogle) ? null : _loginWithBiometrics,
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _inputFillColor,
-                              foregroundColor: _primaryLilac,
-                              shape: const CircleBorder(),
-                              padding: EdgeInsets.zero,
-                              elevation: 0,
-                            ),
-                            child: const Icon(Icons.fingerprint_rounded, size: 28),
-                          ),
-                        ),
-                      ]
                     ],
                   ),
 

@@ -6,6 +6,9 @@ class CertivaApiService {
   CertivaApiService._internal();
 
   static const String _endpointRegistro = '/app/registrar_cliente';
+  static const String _endpointVerificar = '/app/auth/verificar_codigo';
+  static const String _endpointReenviar =
+      '/app/auth/reenviar_codigo_verificacion';
 
   /// Registra un nuevo cliente consumiendo el procedimiento [pr_crear_cuenta_json] en Oracle APEX.
   Future<Map<String, dynamic>> registrarCliente({
@@ -18,7 +21,6 @@ class CertivaApiService {
     required String direccion,
     required String telefono,
   }) async {
-
     // Se eliminan caracteres no numéricos para cumplir con el tipo NUMBER(20) de Oracle
     final telefonoLimpio = telefono.replaceAll(RegExp(r'[^0-9]'), '');
 
@@ -27,7 +29,8 @@ class CertivaApiService {
       'password': password,
       'nombre': nombre,
       'apellido': apellido,
-      'autenticacion': 'CORREO', // Valor fijo exigido por la lógica de negocio en BD
+      'autenticacion':
+          'CORREO', // Valor fijo exigido por la lógica de negocio en BD
       'cedula': cedula,
       'prepaga': prepaga,
       'direccion': direccion,
@@ -39,27 +42,76 @@ class CertivaApiService {
     final response = await ApiClient.post(_endpointRegistro, body);
 
     if (response != null) {
-      // Evaluación de la respuesta estructurada desde APEX
-      if (response['status'] == 'success') {
+      final requiresVerification = response['requires_verification'] == true;
+      if (response['status'] == 'success' || requiresVerification) {
         return {
           'success': true,
+          'status': requiresVerification ? 'requires_verification' : 'success',
           'data': response,
-          'message': 'Cliente registrado: ${response['nombre_cliente']}',
+          'message': response['mensaje'] ?? 'Registro completado.',
         };
       } else {
-        // Captura de errores de validación de negocio (ej. correos duplicados - Error 400)
         return {
           'success': false,
-          'error': response['mensaje'] ?? response['description'] ?? 'Error al registrar cliente',
-          'code': response['codigo']?.toString() ?? 'API_ERROR',
+          'error':
+              response['mensaje'] ??
+              response['message'] ??
+              response['description'] ??
+              'Error al registrar cliente',
+          'code':
+              response['codigo']?.toString() ??
+              response['code']?.toString() ??
+              'API_ERROR',
         };
       }
     } else {
-      // Fallo a nivel de red, timeout o error 500 no capturado
       return {
         'success': false,
-        'error': 'No se pudo conectar con el servidor. Verifica tu conexión a internet e intenta de nuevo.',
+        'error': 'No se pudo conectar con el servidor.',
         'code': 'CONNECTION_ERROR',
+      };
+    }
+  }
+
+  /// Verifica el código OTP enviado al correo.
+  Future<Map<String, dynamic>> verificarCodigo(
+    String email,
+    String codigo,
+  ) async {
+    final body = {'email': email, 'codigo': codigo};
+
+    print('🚀 [CertivaApi] POST $_endpointVerificar | Body: $body');
+    final response = await ApiClient.post(_endpointVerificar, body);
+
+    if (response != null && response['status'] == 'success') {
+      return {
+        'success': true,
+        'message': response['mensaje'] ?? 'Código verificado correctamente.',
+      };
+    } else {
+      return {
+        'success': false,
+        'message': response?['mensaje'] ?? 'Código incorrecto o expirado.',
+      };
+    }
+  }
+
+  /// Solicita el reenvío del código de verificación.
+  Future<Map<String, dynamic>> reenviarCodigo(String email) async {
+    final body = {'email': email};
+
+    print('🚀 [CertivaApi] POST $_endpointReenviar | Body: $body');
+    final response = await ApiClient.post(_endpointReenviar, body);
+
+    if (response != null && response['status'] == 'success') {
+      return {
+        'success': true,
+        'message': response['mensaje'] ?? 'Nuevo código enviado.',
+      };
+    } else {
+      return {
+        'success': false,
+        'message': response?['mensaje'] ?? 'Error al reenviar el código.',
       };
     }
   }
