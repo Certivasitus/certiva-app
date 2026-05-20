@@ -177,36 +177,71 @@ class _LoginScreenState extends State<LoginScreen> {
       final authData = await ClientApiService.getAuthResponseByEmail(email);
 
       if (authData == null) {
-        try { await GoogleSignIn().signOut(); } catch (_) {}
-        if (mounted) {
-          setState(() => _isLoadingGoogle = false);
-          _mostrarDialogoRegistro(email);
-        }
+        try {
+          await GoogleSignIn().signOut();
+        } catch (_) {}
+        if (mounted) _mostrarDialogoRegistro(email);
         return;
       }
 
-      // Validar si requiere verificación (OTP)
-      if (authData['status'] == 'unverified') {
+      final status = authData['status']?.toString();
+
+      // Cuenta no verificada → OTP (la API devuelve id_cliente pero autenticado=false)
+      if (status == 'unverified') {
         if (mounted) {
-          Navigator.push(
+          await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => VerificationOtpScreen(email: email, isFromLogin: true)),
+            MaterialPageRoute(
+              builder: (context) => VerificationOtpScreen(
+                email: email,
+                isFromLogin: true,
+              ),
+            ),
           );
         }
         return;
       }
 
-      final app_user.User? userFromApi = await ClientApiService.getClientByEmail(email);
-      if (userFromApi != null && userFromApi.idCliente != null) {
-        final estaBloqueado = await ClientApiService.isAccountBlocked(userFromApi.idCliente!);
-        if (estaBloqueado) {
-          setState(() => _isLoadingGoogle = false);
-          final confirmoReactivacion = await _mostrarDialogoReactivacion(userFromApi.idCliente!);
-          if (!confirmoReactivacion) {
-            try { await GoogleSignIn().signOut(); } catch (_) {}
-            return;
+      // Cuenta en proceso de eliminación
+      if (status == 'blocked') {
+        final idCliente = authData['id_cliente'];
+        if (idCliente != null && mounted) {
+          final confirmoReactivacion = await _mostrarDialogoReactivacion(
+            idCliente is int ? idCliente : int.parse(idCliente.toString()),
+          );
+          if (confirmoReactivacion) {
+            await _handleSuccessfulAuth(email, photoUrl);
           } else {
-            setState(() => _isLoadingGoogle = true);
+            try {
+              await GoogleSignIn().signOut();
+            } catch (_) {}
+          }
+        }
+        return;
+      }
+
+      if (status != 'success' || authData['autenticado'] != true) {
+        _showErrorSnackBar(
+          authData['mensaje']?.toString() ?? 'No se pudo validar la cuenta.',
+        );
+        return;
+      }
+
+      final app_user.User? userFromApi = await ClientApiService.getClientByEmail(email);
+
+      if (userFromApi != null && userFromApi.idCliente != null) {
+        final estaBloqueado = await ClientApiService.isAccountBlocked(
+          userFromApi.idCliente!,
+        );
+        if (estaBloqueado) {
+          final confirmoReactivacion = await _mostrarDialogoReactivacion(
+            userFromApi.idCliente!,
+          );
+          if (!confirmoReactivacion) {
+            try {
+              await GoogleSignIn().signOut();
+            } catch (_) {}
+            return;
           }
         }
       }
@@ -215,11 +250,17 @@ class _LoginScreenState extends State<LoginScreen> {
         await UserService.saveUser(userFromApi);
         UserService.setCurrentUser(userFromApi);
         if (mounted) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
         }
+      } else {
+        _showErrorSnackBar('No se pudieron obtener los datos de la cuenta.');
       }
     } catch (e) {
       _showErrorSnackBar('Error validando usuario: $e');
+    } finally {
       if (mounted) setState(() => _isLoadingGoogle = false);
     }
   }
