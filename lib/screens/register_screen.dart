@@ -300,7 +300,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 DateFormat('dd/MM/yyyy').format(_fechaNacimiento!),
                 style: TextStyle(color: _onSurface, fontWeight: FontWeight.w500, fontSize: 15),
               )
-            : const SizedBox(height: 20),
+            : Text(
+                'Fecha de nacimiento',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
       ),
     );
   }

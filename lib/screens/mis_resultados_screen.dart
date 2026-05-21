@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../models/estudio_model.dart';
 import '../models/sucursal_model.dart';
@@ -26,22 +25,17 @@ class _MisResultadosScreenState extends State<MisResultadosScreen> with SingleTi
   final Color _outline = const Color(0xFFE0E2E5); // Bordes de tarjetas M3
 
   // Estados de Filtros
-  DateTime? _selectedDate;
   String? _selectedSucursalId;
-  String? _selectedEstudioId;
 
   // Control de panel colapsable
   bool _isFiltersExpanded = false;
 
   // Datos
   List<Sucursal> _listaSucursales = [];
-  List<DropdownItem> _listaTiposEstudios = [];
   List<Estudio> _resultados = [];
 
   bool _isLoading = false;
 
-  // Controladores de dropdowns internos
-  bool _showStudyDropdown = false;
   bool _showBranchDropdown = false;
 
   int? _idCliente;
@@ -65,30 +59,15 @@ class _MisResultadosScreenState extends State<MisResultadosScreen> with SingleTi
 
       final results = await Future.wait([
         EstudiosApiService.getSucursales(),
-        EstudiosApiService.getEstudiosCliente(_idCliente!)
+        EstudiosApiService.getEstudiosCliente(_idCliente!),
       ]);
 
       final sucursales = results[0] as List<Sucursal>;
       final estudiosIniciales = results[1] as List<Estudio>;
 
-      // Extraer tipos de estudios únicos para el filtro
-      final uniqueAnalisis = <String, String>{};
-      for (var e in estudiosIniciales) {
-        if (e.codAnalisis.isNotEmpty) {
-          uniqueAnalisis[e.codAnalisis] = e.analisis;
-        } else {
-          uniqueAnalisis[e.analisis] = e.analisis;
-        }
-      }
-
-      final listaTipos = uniqueAnalisis.entries
-          .map((e) => DropdownItem(id: e.key, label: e.value))
-          .toList();
-
       if (mounted) {
         setState(() {
           _listaSucursales = sucursales;
-          _listaTiposEstudios = listaTipos;
           _resultados = estudiosIniciales;
           _isLoading = false;
         });
@@ -104,26 +83,17 @@ class _MisResultadosScreenState extends State<MisResultadosScreen> with SingleTi
   Future<void> _applyFilters() async {
     setState(() => _isLoading = true);
 
-    String? fechaStr;
-    if (_selectedDate != null) {
-      fechaStr = DateFormat('dd-MM-yy').format(_selectedDate!);
-    }
-
     try {
       final resultadosFiltrados = await EstudiosApiService.getEstudiosCliente(
         _idCliente!,
-        fecha: fechaStr,
         sucursal: _selectedSucursalId,
-        estudio: _selectedEstudioId,
       );
 
       setState(() {
         _resultados = resultadosFiltrados;
         _isLoading = false;
         _showBranchDropdown = false;
-        _showStudyDropdown = false;
 
-        // Auto-colapsar filtros si hay resultados
         if (resultadosFiltrados.isNotEmpty) {
           _isFiltersExpanded = false;
         }
@@ -293,63 +263,22 @@ class _MisResultadosScreenState extends State<MisResultadosScreen> with SingleTi
 
   // --- CONTENIDO DE LOS FILTROS ---
   Widget _buildFilterContent() {
-    String fechaLabel = _selectedDate == null ? 'Todas las fechas' : DateFormat('dd-MM-yy').format(_selectedDate!);
     String sucursalLabel = 'Todas las sucursales';
     if (_selectedSucursalId != null) {
-      final suc = _listaSucursales.firstWhere((e) => e.codigo == _selectedSucursalId, orElse: () => Sucursal(codigo: '', descripcion: ''));
-      if(suc.codigo.isNotEmpty) sucursalLabel = suc.descripcion;
-    }
-    String estudioLabel = 'Todos los estudios';
-    if (_selectedEstudioId != null) {
-      final est = _listaTiposEstudios.firstWhere((e) => e.id == _selectedEstudioId, orElse: () => DropdownItem(id: '', label: ''));
-      if(est.label.isNotEmpty) estudioLabel = est.label;
+      final suc = _listaSucursales.firstWhere(
+        (e) => e.codigo == _selectedSucursalId,
+        orElse: () => Sucursal(codigo: '', descripcion: ''),
+      );
+      if (suc.codigo.isNotEmpty) sucursalLabel = suc.descripcion;
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildFilterField(
-            label: 'Fecha', value: fechaLabel, icon: Icons.calendar_today_rounded,
-            isActive: _selectedDate != null,
-            onTap: () async {
-              setState(() { _showStudyDropdown = false; _showBranchDropdown = false; });
-              final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _selectedDate ?? DateTime.now(),
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime.now(),
-                  builder: (context, child) => Theme(
-                    data: ThemeData.light().copyWith(
-                      colorScheme: ColorScheme.light(primary: _primaryColor, onPrimary: Colors.white),
-                    ),
-                    child: child!,
-                  )
-              );
-              if (picked != null) setState(() => _selectedDate = picked);
-            },
-            onClear: () { setState(() => _selectedDate = null); }
-        ),
-
-        const SizedBox(height: 12),
-
-        _buildFilterField(
-            label: 'Estudio realizado', value: estudioLabel, icon: Icons.science_rounded,
-            isActive: _selectedEstudioId != null,
-            onTap: () => setState(() { _showStudyDropdown = !_showStudyDropdown; _showBranchDropdown=false; }),
-            onClear: () { setState(() => _selectedEstudioId = null); }
-        ),
-        if (_showStudyDropdown) _buildGenericDropdown(
-            items: _listaTiposEstudios,
-            selectedId: _selectedEstudioId,
-            onSelect: (id) => setState(() { _selectedEstudioId = id; _showStudyDropdown = false; })
-        ),
-
-        const SizedBox(height: 12),
-
-        _buildFilterField(
             label: 'Sucursal', value: sucursalLabel, icon: Icons.location_on_rounded,
             isActive: _selectedSucursalId != null,
-            onTap: () => setState(() { _showBranchDropdown = !_showBranchDropdown; _showStudyDropdown=false; }),
+            onTap: () => setState(() => _showBranchDropdown = !_showBranchDropdown),
             onClear: () { setState(() => _selectedSucursalId = null); }
         ),
         if (_showBranchDropdown) _buildGenericDropdown(
@@ -608,8 +537,7 @@ class _MisResultadosScreenState extends State<MisResultadosScreen> with SingleTi
         )
     );
     try {
-      final nombreLimpio = estudio.analisis.replaceAll(RegExp(r'[^\w\s-]'), '').trim().replaceAll(RegExp(r'\s+'), '_');
-      final nombreArchivo = '${nombreLimpio}_${estudio.codSolicitud}.pdf';
+      final nombreArchivo = 'resultado_${estudio.codSolicitud}.pdf';
       final res = await PdfDownloadService.downloadPdf(idSolicitud: estudio.codSolicitud, idFirma: estudio.codFirma!, nombreArchivo: nombreArchivo);
       if (mounted) Navigator.pop(context);
       if (res['success']) {

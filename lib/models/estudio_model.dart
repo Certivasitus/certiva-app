@@ -18,14 +18,23 @@ class Estudio {
   });
 
   factory Estudio.fromJson(Map<String, dynamic> json) {
+    final codSolicitud = json['cod_solicitud'] is int
+        ? json['cod_solicitud'] as int
+        : int.parse(json['cod_solicitud'].toString());
+    final analisisRaw = json['analisis']?.toString().trim() ?? '';
+
     return Estudio(
-      codSolicitud: json['cod_solicitud'] is int ? json['cod_solicitud'] : int.parse(json['cod_solicitud'].toString()),
-      analisis: json['analisis'] ?? 'Estudio sin nombre',
+      codSolicitud: codSolicitud,
+      analisis: analisisRaw.isNotEmpty ? analisisRaw : 'Solicitud $codSolicitud',
       codAnalisis: json['cod_analisis']?.toString() ?? '',
       fechaSolicitud: json['fecha_solicitud'] ?? '',
       codSucursal: json['cod_sucursal']?.toString() ?? '',
       nombreSucursal: json['nombre_sucursal'] ?? '',
-      codFirma: json['cod_firma'] != null ? (json['cod_firma'] is int ? json['cod_firma'] : int.parse(json['cod_firma'].toString())) : null,
+      codFirma: json['cod_firma'] != null
+          ? (json['cod_firma'] is int
+              ? json['cod_firma'] as int
+              : int.parse(json['cod_firma'].toString()))
+          : null,
     );
   }
 }

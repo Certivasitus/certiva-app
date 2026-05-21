@@ -15,23 +15,15 @@ class EstudiosApiService {
     return [];
   }
 
-  // Obtener Estudios
+  // Obtener resultados recientes (filtro opcional: sucursal)
   static Future<List<Estudio>> getEstudiosCliente(
-      int idCliente, {
-        String? fecha,    // dd-MM-yy
-        String? sucursal, // ID Sucursal
-        String? estudio, // ID estudio
-      }) async {
-
+    int idCliente, {
+    String? sucursal,
+  }) async {
     String endpoint = '/app/estudio/resultados/$idCliente';
 
-    List<String> params = [];
-    if (fecha != null && fecha.isNotEmpty) params.add('fecha=$fecha');
-    if (sucursal != null && sucursal.isNotEmpty) params.add('sucursal=$sucursal');
-    if (estudio != null && estudio.isNotEmpty) params.add('estudio=$estudio');
-
-    if (params.isNotEmpty) {
-      endpoint += '?${params.join('&')}';
+    if (sucursal != null && sucursal.isNotEmpty) {
+      endpoint += '?sucursal=$sucursal';
     }
 
     final response = await ApiClient.get(endpoint);

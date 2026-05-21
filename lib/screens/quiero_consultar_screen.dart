@@ -4,6 +4,18 @@ import '../services/user_service.dart';
 import 'consulta_agendada_screen.dart';
 import '../widgets/avatar_doctor.dart';
 
+String _textoSeguro(dynamic valor, [String fallback = '']) {
+  final texto = valor?.toString().trim() ?? '';
+  return texto.isEmpty ? fallback : texto;
+}
+
+int _parseInt(dynamic valor, {int fallback = 0}) {
+  if (valor == null) return fallback;
+  if (valor is int) return valor;
+  if (valor is num) return valor.toInt();
+  return int.tryParse(valor.toString()) ?? fallback;
+}
+
 class QuieroConsultarScreen extends StatefulWidget {
   const QuieroConsultarScreen({Key? key}) : super(key: key);
 
@@ -147,22 +159,29 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
     Map<String, Map<String, dynamic>> grouped = {};
 
     for (var t in rawTurnos) {
-      String key = "${t['fecha']}_${t['profesional']}_${t['esp_id_especialidad']}_${t['cod_sucursal']}";
+      final fecha = _textoSeguro(t['fecha']);
+      final profesional = _textoSeguro(t['profesional']);
+      final especialidad = _textoSeguro(t['esp_id_especialidad']);
+      final sucursal = _textoSeguro(t['cod_sucursal']);
+      final key = '${fecha}_${profesional}_${especialidad}_$sucursal';
 
       if (!grouped.containsKey(key)) {
         grouped[key] = {
-          'fecha': t['fecha'],
+          'fecha': fecha,
           'cod_prestador': t['profesional'],
-          'nombre_prestador': t['raz_soc_nombre'],
+          'nombre_prestador': _textoSeguro(t['raz_soc_nombre'], 'Profesional'),
           'cod_especialidad': t['esp_id_especialidad'],
-          'descripcion_especialidad': t['descripcion_especialidad'],
+          'descripcion_especialidad': _textoSeguro(t['descripcion_especialidad'], 'Especialidad'),
           'cod_sucursal': t['cod_sucursal'],
-          'descripcion_sucursal': t['descripcion_sucursal'],
+          'descripcion_sucursal': _textoSeguro(t['descripcion_sucursal'], 'Sucursal no indicada'),
           'horarios': <String>[],
           'turnos_data': <Map<String, dynamic>>[],
         };
       }
-      grouped[key]!['horarios'].add(t['hora_disponible']);
+      final hora = _textoSeguro(t['hora_disponible']);
+      if (hora.isNotEmpty) {
+        grouped[key]!['horarios'].add(hora);
+      }
       grouped[key]!['turnos_data'].add(t);
     }
     return grouped.values.toList();
@@ -387,7 +406,7 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        data['nombre_prestador'],
+                        _textoSeguro(data['nombre_prestador'], 'Profesional'),
                         style: TextStyle(
                             color: _onSurface,
                             fontSize: 16,
@@ -396,7 +415,7 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        data['descripcion_especialidad'],
+                        _textoSeguro(data['descripcion_especialidad'], 'Especialidad'),
                         style: TextStyle(
                             color: _primaryColor,
                             fontSize: 13,
@@ -421,7 +440,7 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
                     Icon(Icons.calendar_today_rounded, size: 16, color: _onSurfaceVariant),
                     const SizedBox(width: 10),
                     Text(
-                        data['fecha'],
+                        _textoSeguro(data['fecha'], 'Fecha no indicada'),
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _onSurface)
                     ),
                   ],
@@ -433,7 +452,7 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        data['descripcion_sucursal'],
+                        _textoSeguro(data['descripcion_sucursal'], 'Sucursal no indicada'),
                         style: TextStyle(fontSize: 13, color: _onSurfaceVariant),
                       ),
                     ),
@@ -496,14 +515,14 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
       context,
       MaterialPageRoute(
         builder: (context) => _DoctorScheduleScreen(
-          especialidad: data['descripcion_especialidad'],
-          codEspecialidad: data['cod_especialidad'],
-          medico: data['nombre_prestador'],
-          codMedico: data['cod_prestador'],
+          especialidad: _textoSeguro(data['descripcion_especialidad'], 'Especialidad'),
+          codEspecialidad: _parseInt(data['cod_especialidad']),
+          medico: _textoSeguro(data['nombre_prestador'], 'Profesional'),
+          codMedico: _parseInt(data['cod_prestador']),
           avatarUrl: fotoDoctor,
-          sucursal: data['descripcion_sucursal'],
-          codSucursal: data['cod_sucursal'],
-          fecha: data['fecha'],
+          sucursal: _textoSeguro(data['descripcion_sucursal'], 'Sucursal no indicada'),
+          codSucursal: _parseInt(data['cod_sucursal']),
+          fecha: _textoSeguro(data['fecha'], 'Fecha no indicada'),
           horariosDisponibles: List<String>.from(data['horarios']),
           turnosCompletos: List<Map<String, dynamic>>.from(data['turnos_data']),
         ),
@@ -994,7 +1013,7 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
                                 : () {
                               setState(() {
                                 selectedTime = time;
-                                selectedIdDetAux = turno['id_det_aux'];
+                                selectedIdDetAux = _parseInt(turno['id_det_aux']);
                               });
                             },
                             borderRadius: BorderRadius.circular(12),
@@ -1092,7 +1111,9 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
     setState(() => isLoading = true);
 
     try {
-      final turnoSeleccionado = widget.turnosCompletos.firstWhere((turno) => turno['id_det_aux'] == selectedIdDetAux);
+      final turnoSeleccionado = widget.turnosCompletos.firstWhere(
+        (turno) => _parseInt(turno['id_det_aux']) == selectedIdDetAux,
+      );
       final fechaFormateada = '${widget.fecha} $selectedTime';
 
       final currentUser = UserService.getCurrentUser();
@@ -1112,7 +1133,7 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
         idCliente: currentUser.idCliente!,
         idPersonaProf: widget.codMedico,
         idDetAux: selectedIdDetAux!,
-        idBox: turnoSeleccionado['cod_box'],
+        idBox: _parseInt(turnoSeleccionado['cod_box']),
         idSucursal: widget.codSucursal,
         observacion: 'Agendado desde App Movil',
       );
