@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/consultation_service.dart';
 import '../services/user_service.dart';
+import '../services/client_api_service.dart';
 import '../models/consultation.dart';
 
 class MiAgendaScreen extends StatefulWidget {
@@ -69,8 +70,20 @@ class _MiAgendaScreenState extends State<MiAgendaScreen>
   }) async {
     final currentUser = UserService.getCurrentUser();
     if (currentUser != null && currentUser.idCliente != null) {
+      final finalIdCliente =
+          await ClientApiService.resolveLabClientId(currentUser);
+      if (finalIdCliente == null) {
+        print('⚠️ [MiAgenda] Sin cli_id; ec=${currentUser.idCliente}');
+        return [];
+      }
+
+      print('=== GET AGENDA ===');
+      print('ec_cliente (sesión): ${currentUser.idCliente}');
+      print('cliente.cli_id (header): $finalIdCliente');
+      print('==================');
+
       return await _consultationService.getAgendaFromAPI(
-        idCliente: currentUser.idCliente!,
+        idCliente: finalIdCliente,
         fecha: fecha,
         idSucursal: branchId,
         estado: status,

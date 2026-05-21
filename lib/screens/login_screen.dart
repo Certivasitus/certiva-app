@@ -249,11 +249,9 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       final app_user.User? userFromApi = loadResult.user;
 
-      final cliIdForApi = ClientApiService.parseIdCliente(authData['id_cliente']);
-      if (userFromApi != null && userFromApi.idCliente != null && cliIdForApi != null) {
+      if (userFromApi != null && userFromApi.idCliente != null) {
         final estaBloqueado = await ClientApiService.isAccountBlocked(
           userFromApi.idCliente!,
-          cliIdCliente: cliIdForApi,
         );
         if (estaBloqueado) {
           final confirmoReactivacion = await _mostrarDialogoReactivacion(

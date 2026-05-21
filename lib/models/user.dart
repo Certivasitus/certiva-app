@@ -29,7 +29,7 @@ class User extends HiveObject {
   String password;
 
   @HiveField(8)
-  int? idCliente; // ID del cliente en la API
+  int? idCliente; // PK ec_cliente (get_cliente/:id, put_modificar_usuario)
 
   @HiveField(9)
   String? ruc; // RUC de la persona
@@ -43,7 +43,8 @@ class User extends HiveObject {
   /// Nombre de la prepaga (solo en memoria; no persiste en Hive).
   String? seguroNombre;
 
-  /// cli_id_cliente para get_cliente (solo en memoria).
+  /// cliente.cli_id_cliente — agenda, agendar turno, get_agenda.
+  @HiveField(12)
   int? cliIdCliente;
 
   User({
@@ -102,4 +103,4 @@ class User extends HiveObject {
       cliIdCliente: map['cliIdCliente'],
     );
   }
-} 
+}

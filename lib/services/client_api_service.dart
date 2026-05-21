@@ -4,7 +4,6 @@ import 'api_client.dart';
 import 'client_load_result.dart';
 
 class ClientApiService {
-
   /// Convierte id_cliente de la API (int, double o string) a int.
   static int? parseIdCliente(dynamic raw) {
     if (raw == null) return null;
@@ -35,17 +34,85 @@ class ClientApiService {
       celular: clienteData['telefono'] ?? '',
       email: clienteData['email'] ?? '',
       seguro: clienteData['prepaga']?.toString() ?? '',
-      seguroNombre: prepagaNombre != null && prepagaNombre.isNotEmpty
-          ? prepagaNombre
-          : null,
+      seguroNombre:
+          prepagaNombre != null && prepagaNombre.isNotEmpty
+              ? prepagaNombre
+              : null,
       password: '',
-      // id_cliente en JSON = PK ec_cliente (put_modificar_usuario); cli_id en URL de get_cliente
+      // id_cliente JSON = ec_cliente; id_cliente_final = cliente.cli_id_cliente
       idCliente: parseIdCliente(clienteData['id_cliente']) ?? idClienteFallback,
       cliIdCliente: parseIdCliente(clienteData['id_cliente_final']),
       ruc: clienteData['ruc']?.toString(),
       razonSocial: clienteData['razon_social']?.toString(),
       sexo: clienteData['sex_id_sexo']?.toString(),
     );
+  }
+
+  static app_user.User _userWithResolvedIds(
+    app_user.User user, {
+    required int cliId,
+    int? ecId,
+  }) {
+    return app_user.User(
+      nombres: user.nombres,
+      apellidos: user.apellidos,
+      cedula: user.cedula,
+      direccion: user.direccion,
+      celular: user.celular,
+      email: user.email,
+      seguro: user.seguro,
+      seguroNombre: user.seguroNombre,
+      password: user.password,
+      idCliente: ecId ?? user.idCliente,
+      cliIdCliente: cliId,
+      ruc: user.ruc,
+      razonSocial: user.razonSocial,
+      sexo: user.sexo,
+    );
+  }
+
+  /// ID de tabla CLIENTE (cli_id_cliente) para get_agenda, post_agendar_turno, etc.
+  /// get_cliente/:id recibe ec_cliente.id_cliente y devuelve id_cliente_final.
+  static Future<int?> resolveLabClientId(app_user.User user) async {
+    final ecId = user.idCliente;
+    print(
+      '🔍 [ClientApi] resolveLabClientId '
+      'ec=$ecId cli_memoria=${user.cliIdCliente} email=${user.email}',
+    );
+
+    if (user.cliIdCliente != null) {
+      return user.cliIdCliente;
+    }
+
+    if (ecId != null) {
+      final fetch = await getClientByIdWithResult(ecId);
+      final cliFromApi = fetch.user?.cliIdCliente ??
+          parseIdCliente(
+            _extractClientePayload(fetch.lastApiPayload)?['id_cliente_final'],
+          );
+      if (cliFromApi != null) {
+        print('✅ [ClientApi] cli_id=$cliFromApi vía get_cliente/$ecId (ec)');
+        return cliFromApi;
+      }
+      print(
+        '⚠️ [ClientApi] get_cliente/$ecId sin id_cliente_final: '
+        '${fetch.debugMessage}',
+      );
+    }
+
+    if (user.email.isNotEmpty) {
+      final auth = await getAuthResponseByEmail(user.email);
+      if (auth != null) {
+        final cliFromAuth = parseIdCliente(auth['id_cliente']);
+        if (cliFromAuth != null) {
+          print('✅ [ClientApi] cli_id=$cliFromAuth vía post_autenticacion');
+          return cliFromAuth;
+        }
+      }
+    }
+
+    print('❌ [ClientApi] No se pudo resolver cli_id_cliente');
+    return null;
   }
 
   static bool _isMissingPrepagaError(ClientLoadResult result) {
@@ -108,27 +175,44 @@ class ClientApiService {
     return null;
   }
 
-  /// GET /app/get_cliente/:id con detalle de error (id = cli_id_cliente / id_cliente_final).
-  static Future<ClientLoadResult> getClientByIdWithResult(int idCliente) async {
-    print('🔍 [ClientApi] get_cliente/$idCliente');
+  /// GET /app/get_cliente/:id — [ecId] = ec_cliente.id_cliente.
+  static Future<ClientLoadResult> getClientByIdWithResult(int ecId) async {
+    print(
+      '🔍 [ClientApi] GET /app/get_cliente/$ecId '
+      '(ec_cliente.id → respuesta id_cliente_final = cli)',
+    );
 
-    final responseData = await ApiClient.get('/app/get_cliente/$idCliente');
+    final responseData = await ApiClient.get('/app/get_cliente/$ecId');
 
     if (responseData == null) {
       return ClientLoadResult(
         failureStep: 'get_cliente',
         failureDetail: 'sin respuesta (red o HTTP sin cuerpo)',
-        clientIdUsed: idCliente,
+        clientIdUsed: ecId,
       );
     }
 
     if (responseData is Map && responseData['_httpStatus'] == 404) {
       final errMap = Map<String, dynamic>.from(responseData);
-      print('❌ [ClientApi] get_cliente 404: ${_extractApiMessage(errMap)}');
+      print('❌ [ClientApi] get_cliente/$ecId 404: ${_extractApiMessage(errMap)}');
       return ClientLoadResult(
         failureStep: 'get_cliente HTTP 404',
         failureDetail: _extractApiMessage(errMap),
-        clientIdUsed: idCliente,
+        clientIdUsed: ecId,
+        lastApiPayload: errMap,
+      );
+    }
+
+    if (responseData is Map &&
+        (responseData['code'] != null || responseData['codigo'] != null)) {
+      final errMap = Map<String, dynamic>.from(responseData);
+      print(
+        '❌ [ClientApi] get_cliente/$ecId error: ${_extractApiMessage(errMap)}',
+      );
+      return ClientLoadResult(
+        failureStep: 'get_cliente error API',
+        failureDetail: _extractApiMessage(errMap),
+        clientIdUsed: ecId,
         lastApiPayload: errMap,
       );
     }
@@ -136,28 +220,40 @@ class ClientApiService {
     try {
       final clienteData = _extractClientePayload(responseData);
       if (clienteData != null) {
-        final user = _mapClienteData(clienteData, idCliente)!;
-        print('✅ [ClientApi] Cliente cargado: ${user.email} (id=${user.idCliente})');
-        return ClientLoadResult(user: user, clientIdUsed: idCliente);
+        final idEc = parseIdCliente(clienteData['id_cliente']);
+        final idCli = parseIdCliente(clienteData['id_cliente_final']);
+        print(
+          '📋 [ClientApi] get_cliente/$ecId → '
+          'id_cliente(ec)=$idEc id_cliente_final(cli)=$idCli',
+        );
+        final user = _mapClienteData(clienteData, ecId)!;
+        print(
+          '✅ [ClientApi] ${user.email} ec=${user.idCliente} cli=${user.cliIdCliente}',
+        );
+        return ClientLoadResult(user: user, clientIdUsed: ecId);
       }
-      print('⚠️ [ClientApi] get_cliente sin estructura clientes[]: $responseData');
+      print(
+        '⚠️ [ClientApi] get_cliente sin estructura clientes[]: $responseData',
+      );
       return ClientLoadResult(
         failureStep: 'get_cliente',
         failureDetail: 'JSON sin datos de cliente reconocibles',
-        clientIdUsed: idCliente,
-        lastApiPayload: responseData is Map
-            ? Map<String, dynamic>.from(responseData)
-            : null,
+        clientIdUsed: ecId,
+        lastApiPayload:
+            responseData is Map
+                ? Map<String, dynamic>.from(responseData)
+                : null,
       );
     } catch (e, st) {
       print('🚨 [ClientApi] Error mapeando cliente: $e\n$st');
       return ClientLoadResult(
         failureStep: 'mapeo cliente',
         failureDetail: e.toString(),
-        clientIdUsed: idCliente,
-        lastApiPayload: responseData is Map
-            ? Map<String, dynamic>.from(responseData)
-            : null,
+        clientIdUsed: ecId,
+        lastApiPayload:
+            responseData is Map
+                ? Map<String, dynamic>.from(responseData)
+                : null,
       );
     }
   }
@@ -169,7 +265,9 @@ class ClientApiService {
   }
 
   // Obtener respuesta de autenticación por email (para Google Login y verificaciones)
-  static Future<Map<String, dynamic>?> getAuthResponseByEmail(String email) async {
+  static Future<Map<String, dynamic>?> getAuthResponseByEmail(
+    String email,
+  ) async {
     final responseData = await ApiClient.post('/app/post_autenticacion', {
       'email': email,
     });
@@ -189,10 +287,12 @@ class ClientApiService {
     return null;
   }
 
-  /// cli_id para get_cliente; ec_id para put_modificar_usuario (id_cliente_ec si viene en auth).
-  static ({int? cliId, int? ecId}) _resolveClientIds(Map<String, dynamic> authData) {
+  /// post_autenticacion: id_cliente = cli (lab), id_cliente_ec = ec_cliente PK.
+  static ({int? cliId, int? ecId}) _resolveClientIds(
+    Map<String, dynamic> authData,
+  ) {
     final cliId = parseIdCliente(authData['id_cliente']);
-    final ecId = parseIdCliente(authData['id_cliente_ec']) ?? cliId;
+    final ecId = parseIdCliente(authData['id_cliente_ec']);
     return (cliId: cliId, ecId: ecId);
   }
 
@@ -209,17 +309,27 @@ class ClientApiService {
       'status=${authData['status']} cli=$idClienteCli ec=$idClienteEc',
     );
 
-    if (idClienteCli == null) {
+    if (idClienteCli == null && idClienteEc == null) {
       return ClientLoadResult(
         failureStep: 'post_autenticacion',
-        failureDetail: 'respuesta sin id_cliente válido: ${authData['id_cliente']}',
+        failureDetail:
+            'respuesta sin id_cliente válido: ${authData['id_cliente']}',
         lastApiPayload: authData,
       );
     }
 
-    final fetchResult = await getClientByIdWithResult(idClienteCli);
-    if (fetchResult.isSuccess) {
-      return fetchResult;
+    final ecForGet = idClienteEc ?? idClienteCli;
+    final fetchResult = await getClientByIdWithResult(ecForGet!);
+    if (fetchResult.isSuccess && fetchResult.user != null) {
+      final cliId = fetchResult.user!.cliIdCliente ?? idClienteCli ?? ecForGet;
+      return ClientLoadResult(
+        user: _userWithResolvedIds(
+          fetchResult.user!,
+          cliId: cliId,
+          ecId: idClienteEc ?? fetchResult.user!.idCliente,
+        ),
+        clientIdUsed: ecForGet,
+      );
     }
 
     app_user.User? hiveUser;
@@ -232,74 +342,57 @@ class ClientApiService {
     // Fallback: sin prepaga en lab → permitir login; completar en Mi Perfil
     if (_isMissingPrepagaError(fetchResult)) {
       print('⚠️ [ClientApi] Prepaga pendiente en lab; login con perfil mínimo');
+      final cliFallback = idClienteCli ?? ecForGet;
       var user = _minimalUserForLogin(
         email: email,
-        cliIdCliente: idClienteCli,
+        cliIdCliente: cliFallback,
         hiveUser: hiveUser,
       );
-      if (idClienteEc != null) {
-        user = app_user.User(
-          nombres: user.nombres,
-          apellidos: user.apellidos,
-          cedula: user.cedula,
-          direccion: user.direccion,
-          celular: user.celular,
-          email: user.email,
-          seguro: user.seguro,
-          password: user.password,
-          idCliente: idClienteEc,
-          ruc: user.ruc,
-          razonSocial: user.razonSocial,
-          sexo: user.sexo,
-        );
-      }
+      user = _userWithResolvedIds(
+        user,
+        cliId: cliFallback,
+        ecId: idClienteEc,
+      );
       return ClientLoadResult(
         user: user,
-        clientIdUsed: idClienteCli,
+        clientIdUsed: ecForGet,
         requiresPrepagaSetup: true,
         failureDetail: fetchResult.failureDetail,
       );
     }
 
     if (hiveUser != null) {
+      final cliFallback = idClienteCli ?? ecForGet;
       var user = _minimalUserForLogin(
         email: email,
-        cliIdCliente: idClienteCli,
+        cliIdCliente: cliFallback,
         hiveUser: hiveUser,
       );
-      if (idClienteEc != null) {
-        user = app_user.User(
-          nombres: user.nombres,
-          apellidos: user.apellidos,
-          cedula: user.cedula,
-          direccion: user.direccion,
-          celular: user.celular,
-          email: user.email,
-          seguro: user.seguro,
-          password: user.password,
-          idCliente: idClienteEc,
-          ruc: user.ruc,
-          razonSocial: user.razonSocial,
-          sexo: user.sexo,
-        );
-      }
-      print('✅ [ClientApi] Cliente desde Hive (cli=$idClienteCli ec=$idClienteEc)');
+      user = _userWithResolvedIds(
+        user,
+        cliId: cliFallback,
+        ecId: idClienteEc,
+      );
+      print(
+        '✅ [ClientApi] Cliente desde Hive (cli=$idClienteCli ec=$idClienteEc)',
+      );
       return ClientLoadResult(
         user: user,
-        clientIdUsed: idClienteCli,
-        failureDetail: 'get_cliente falló; datos locales: ${fetchResult.debugMessage}',
+        clientIdUsed: ecForGet,
+        failureDetail:
+            'get_cliente falló; datos locales: ${fetchResult.debugMessage}',
       );
     }
 
     return ClientLoadResult(
       failureStep: fetchResult.failureStep ?? 'get_cliente',
       failureDetail: fetchResult.failureDetail ?? 'sin datos locales en Hive',
-      clientIdUsed: idClienteCli,
+      clientIdUsed: ecForGet,
       lastApiPayload: fetchResult.lastApiPayload,
     );
   }
 
-  /// Perfil completo para Mi Perfil: usa cli_id de post_autenticacion y get_cliente.
+  /// Perfil completo para Mi Perfil: post_autenticacion + get_cliente(ec_id).
   static Future<app_user.User?> fetchClientProfileByEmail(String email) async {
     print('🔄 [ClientApi] fetchClientProfileByEmail: $email');
 
@@ -328,26 +421,21 @@ class ClientApiService {
       );
       if (result.user != null) return result.user;
     } else {
-      final fetch = await getClientByIdWithResult(ids.cliId!);
-      if (fetch.isSuccess && fetch.user != null) {
-        var user = fetch.user!;
-        if (ids.ecId != null && user.idCliente != ids.ecId) {
-          user = app_user.User(
-            nombres: user.nombres,
-            apellidos: user.apellidos,
-            cedula: user.cedula,
-            direccion: user.direccion,
-            celular: user.celular,
-            email: user.email,
-            seguro: user.seguro,
-            password: user.password,
-            idCliente: ids.ecId,
-            ruc: user.ruc,
-            razonSocial: user.razonSocial,
-            sexo: user.sexo,
-          );
+      final ecForGet = ids.ecId ?? ids.cliId;
+      if (ecForGet == null) {
+        try {
+          return await UserService.getUserByEmail(email);
+        } catch (_) {
+          return null;
         }
-        return user;
+      }
+      final fetch = await getClientByIdWithResult(ecForGet);
+      if (fetch.isSuccess && fetch.user != null) {
+        return _userWithResolvedIds(
+          fetch.user!,
+          cliId: fetch.user!.cliIdCliente ?? ids.cliId ?? ecForGet,
+          ecId: ids.ecId ?? fetch.user!.idCliente,
+        );
       }
     }
 
@@ -381,7 +469,9 @@ class ClientApiService {
   }
 
   /// Versión con detalle de error para pantallas de login.
-  static Future<ClientLoadResult> getClientByEmailWithResult(String email) async {
+  static Future<ClientLoadResult> getClientByEmailWithResult(
+    String email,
+  ) async {
     final authData = await getAuthResponseByEmail(email);
     if (authData == null) {
       return const ClientLoadResult(
@@ -410,7 +500,8 @@ class ClientApiService {
 
     if (responseData != null) {
       // Asumimos éxito si responde 200
-      return responseData['status'] == 'success' || responseData['message'] != null;
+      return responseData['status'] == 'success' ||
+          responseData['message'] != null;
     }
     return false;
   }
@@ -426,7 +517,8 @@ class ClientApiService {
     String? email,
     String? cedula,
   }) async {
-    if (idPrepaga.isEmpty) return {'success': false, 'message': 'Falta prepaga'};
+    if (idPrepaga.isEmpty)
+      return {'success': false, 'message': 'Falta prepaga'};
     if (telefono == null || telefono.isEmpty) {
       return {'success': false, 'message': 'Falta teléfono'};
     }
@@ -442,12 +534,16 @@ class ClientApiService {
     };
 
     if (nombre != null && nombre.isNotEmpty) body['nombre'] = nombre.trim();
-    if (apellido != null && apellido.isNotEmpty) body['apellido'] = apellido.trim();
+    if (apellido != null && apellido.isNotEmpty)
+      body['apellido'] = apellido.trim();
     if (email != null && email.isNotEmpty) body['email'] = email.trim();
     if (cedula != null && cedula.isNotEmpty) body['cedula'] = cedula.trim();
 
     print('🚀 [ClientApi] PUT /app/put_modificar_usuario | Body: $body');
-    final responseData = await ApiClient.put('/app/put_modificar_usuario', body);
+    final responseData = await ApiClient.put(
+      '/app/put_modificar_usuario',
+      body,
+    );
 
     if (responseData != null) {
       if (responseData['status'] == 'success') {
@@ -469,7 +565,9 @@ class ClientApiService {
   }
 
   // Solicitar Baja de Cuenta
-  static Future<Map<String, dynamic>> requestAccountDeletion(int idCliente) async {
+  static Future<Map<String, dynamic>> requestAccountDeletion(
+    int idCliente,
+  ) async {
     try {
       // Usamos la ruta configurada en ORDS según la imagen
       final responseData = await ApiClient.post('/app/profile/account/delete', {
@@ -481,32 +579,38 @@ class ClientApiService {
           return {
             'success': true,
             // Retornamos el mensaje exacto que viene desde el PL/SQL
-            'message': responseData['mensaje'] ?? 'Cuenta en proceso de eliminación.'
+            'message':
+                responseData['mensaje'] ?? 'Cuenta en proceso de eliminación.',
           };
         } else {
           return {
             'success': false,
-            'message': responseData['message'] ?? responseData['description'] ?? 'Error al procesar la solicitud.'
+            'message':
+                responseData['message'] ??
+                responseData['description'] ??
+                'Error al procesar la solicitud.',
           };
         }
       }
-      return {'success': false, 'message': 'No se recibió respuesta del servidor.'};
+      return {
+        'success': false,
+        'message': 'No se recibió respuesta del servidor.',
+      };
     } catch (e) {
       print('🚨 Error al solicitar baja de cuenta: $e');
-      return {'success': false, 'message': 'Error de conexión con el servidor.'};
+      return {
+        'success': false,
+        'message': 'Error de conexión con el servidor.',
+      };
     }
   }
 
   // --- MÉTODOS PARA REACTIVACIÓN DE CUENTA ---
 
-  // 1. Verificar si la cuenta está bloqueada (get_cliente usa cli_id_cliente)
-  static Future<bool> isAccountBlocked(
-    int idCliente, {
-    int? cliIdCliente,
-  }) async {
-    final getId = cliIdCliente ?? idCliente;
+  // 1. Verificar bloqueo — get_cliente/:id usa ec_cliente.id_cliente
+  static Future<bool> isAccountBlocked(int ecIdCliente) async {
     try {
-      final responseData = await ApiClient.get('/app/get_cliente/$getId');
+      final responseData = await ApiClient.get('/app/get_cliente/$ecIdCliente');
 
       if (responseData != null) {
         Map<String, dynamic>? clienteData;
@@ -534,17 +638,30 @@ class ClientApiService {
   // 2. Llamar al endpoint de Reactivación
   static Future<Map<String, dynamic>> reactivateAccount(int idCliente) async {
     try {
-      final responseData = await ApiClient.post('/app/profile/account/reactivate', {
-        'id_cliente': idCliente,
-      });
+      final responseData = await ApiClient.post(
+        '/app/profile/account/reactivate',
+        {'id_cliente': idCliente},
+      );
 
       if (responseData != null && responseData['status'] == 'success') {
-        return {'success': true, 'message': responseData['mensaje'] ?? 'Cuenta reactivada correctamente.'};
+        return {
+          'success': true,
+          'message':
+              responseData['mensaje'] ?? 'Cuenta reactivada correctamente.',
+        };
       }
-      return {'success': false, 'message': responseData?['mensaje'] ?? 'Error al intentar reactivar la cuenta.'};
+      return {
+        'success': false,
+        'message':
+            responseData?['mensaje'] ??
+            'Error al intentar reactivar la cuenta.',
+      };
     } catch (e) {
       print('🚨 Error en API de reactivación: $e');
-      return {'success': false, 'message': 'Error de conexión con el servidor.'};
+      return {
+        'success': false,
+        'message': 'Error de conexión con el servidor.',
+      };
     }
   }
 }

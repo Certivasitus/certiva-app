@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/consultation_service.dart';
 import '../services/user_service.dart';
+import '../services/client_api_service.dart';
 import 'consulta_agendada_screen.dart';
 import '../widgets/avatar_doctor.dart';
 
@@ -23,7 +24,8 @@ class QuieroConsultarScreen extends StatefulWidget {
   State<QuieroConsultarScreen> createState() => _QuieroConsultarScreenState();
 }
 
-class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with SingleTickerProviderStateMixin {
+class _QuieroConsultarScreenState extends State<QuieroConsultarScreen>
+    with SingleTickerProviderStateMixin {
   // --- Colores Material 3 ---
   final Color _primaryColor = const Color(0xFFB47EDB);
   final Color _secondaryColor = const Color(0xFF09D5D6);
@@ -96,26 +98,34 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
       setState(() => _filteredDoctors = _allDoctors);
     } else {
       setState(() {
-        _filteredDoctors = _allDoctors.where((doc) {
-          final docSpecs = List<String>.from(doc['especialidades'] ?? []);
-          return docSpecs.contains(specialtyName);
-        }).toList();
+        _filteredDoctors =
+            _allDoctors.where((doc) {
+              final docSpecs = List<String>.from(doc['especialidades'] ?? []);
+              return docSpecs.contains(specialtyName);
+            }).toList();
       });
     }
   }
 
   Future<void> _buscarTurnos() async {
-    if (_selectedSpecialtyId == null && _selectedDoctorId == null && _selectedBranchId == null) {
-      _showSnack('Por favor, seleccione también una Especialidad, Médico o Sucursal.', isError: true);
+    if (_selectedSpecialtyId == null &&
+        _selectedDoctorId == null &&
+        _selectedBranchId == null) {
+      _showSnack(
+        'Por favor, seleccione también una Especialidad, Médico o Sucursal.',
+        isError: true,
+      );
       return;
     }
 
     String fechaStr;
     if (_selectedDate != null) {
-      fechaStr = "${_selectedDate!.day.toString().padLeft(2, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.year}";
+      fechaStr =
+          "${_selectedDate!.day.toString().padLeft(2, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.year}";
     } else {
       final hoy = DateTime.now();
-      fechaStr = "${hoy.day.toString().padLeft(2, '0')}-${hoy.month.toString().padLeft(2, '0')}-${hoy.year}";
+      fechaStr =
+          "${hoy.day.toString().padLeft(2, '0')}-${hoy.month.toString().padLeft(2, '0')}-${hoy.year}";
     }
 
     setState(() => _isLoading = true);
@@ -155,7 +165,9 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
     }
   }
 
-  List<Map<String, dynamic>> _agruparTurnos(List<Map<String, dynamic>> rawTurnos) {
+  List<Map<String, dynamic>> _agruparTurnos(
+    List<Map<String, dynamic>> rawTurnos,
+  ) {
     Map<String, Map<String, dynamic>> grouped = {};
 
     for (var t in rawTurnos) {
@@ -171,9 +183,15 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
           'cod_prestador': t['profesional'],
           'nombre_prestador': _textoSeguro(t['raz_soc_nombre'], 'Profesional'),
           'cod_especialidad': t['esp_id_especialidad'],
-          'descripcion_especialidad': _textoSeguro(t['descripcion_especialidad'], 'Especialidad'),
+          'descripcion_especialidad': _textoSeguro(
+            t['descripcion_especialidad'],
+            'Especialidad',
+          ),
           'cod_sucursal': t['cod_sucursal'],
-          'descripcion_sucursal': _textoSeguro(t['descripcion_sucursal'], 'Sucursal no indicada'),
+          'descripcion_sucursal': _textoSeguro(
+            t['descripcion_sucursal'],
+            'Sucursal no indicada',
+          ),
           'horarios': <String>[],
           'turnos_data': <Map<String, dynamic>>[],
         };
@@ -207,8 +225,12 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
         elevation: 0,
         centerTitle: true,
         title: Text(
-            'Quiero consultar',
-            style: TextStyle(fontWeight: FontWeight.w600, color: _onSurface, fontSize: 20)
+          'Quiero consultar',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: _onSurface,
+            fontSize: 20,
+          ),
         ),
         iconTheme: IconThemeData(color: _onSurface),
         leading: IconButton(
@@ -232,13 +254,15 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-
                   // PANEL DE FILTROS COLAPSABLE M3
                   _buildCollapsiblePanel(
                     title: 'Filtros de búsqueda',
                     icon: Icons.tune_rounded,
                     isExpanded: _isFiltersExpanded,
-                    onToggle: () => setState(() => _isFiltersExpanded = !_isFiltersExpanded),
+                    onToggle:
+                        () => setState(
+                          () => _isFiltersExpanded = !_isFiltersExpanded,
+                        ),
                     child: _buildFilterContent(),
                   ),
 
@@ -258,9 +282,13 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
                   // RESULTADOS
                   _isLoading
                       ? Padding(
-                      padding: const EdgeInsets.all(40),
-                      child: Center(child: CircularProgressIndicator(color: _primaryColor))
-                  )
+                        padding: const EdgeInsets.all(40),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: _primaryColor,
+                          ),
+                        ),
+                      )
                       : _buildResultsList(),
 
                   const SizedBox(height: 40),
@@ -326,7 +354,9 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
                     ),
                   ),
                   Icon(
-                    isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
                     color: _onSurfaceVariant,
                   ),
                 ],
@@ -339,13 +369,14 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
             alignment: Alignment.topCenter,
-            child: isExpanded
-                ? Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              child: child,
-            )
-                : const SizedBox.shrink(),
+            child:
+                isExpanded
+                    ? Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      child: child,
+                    )
+                    : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -365,9 +396,13 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
             const SizedBox(height: 16),
             Text(
               "No se encontraron turnos.",
-              style: TextStyle(color: _onSurfaceVariant, fontSize: 16, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                color: _onSurfaceVariant,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
               textAlign: TextAlign.center,
-            )
+            ),
           ],
         ),
       );
@@ -408,18 +443,21 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
                       Text(
                         _textoSeguro(data['nombre_prestador'], 'Profesional'),
                         style: TextStyle(
-                            color: _onSurface,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600
+                          color: _onSurface,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _textoSeguro(data['descripcion_especialidad'], 'Especialidad'),
+                        _textoSeguro(
+                          data['descripcion_especialidad'],
+                          'Especialidad',
+                        ),
                         style: TextStyle(
-                            color: _primaryColor,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500
+                          color: _primaryColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -437,23 +475,41 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
               children: [
                 Row(
                   children: [
-                    Icon(Icons.calendar_today_rounded, size: 16, color: _onSurfaceVariant),
+                    Icon(
+                      Icons.calendar_today_rounded,
+                      size: 16,
+                      color: _onSurfaceVariant,
+                    ),
                     const SizedBox(width: 10),
                     Text(
-                        _textoSeguro(data['fecha'], 'Fecha no indicada'),
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _onSurface)
+                      _textoSeguro(data['fecha'], 'Fecha no indicada'),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: _onSurface,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.location_on_rounded, size: 16, color: _onSurfaceVariant),
+                    Icon(
+                      Icons.location_on_rounded,
+                      size: 16,
+                      color: _onSurfaceVariant,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        _textoSeguro(data['descripcion_sucursal'], 'Sucursal no indicada'),
-                        style: TextStyle(fontSize: 13, color: _onSurfaceVariant),
+                        _textoSeguro(
+                          data['descripcion_sucursal'],
+                          'Sucursal no indicada',
+                        ),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ],
@@ -466,18 +522,21 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             child: SizedBox(
               width: double.infinity,
-              child: FilledButton.tonalIcon( // Botón Tonal M3
+              child: FilledButton.tonalIcon(
+                // Botón Tonal M3
                 onPressed: () => _navigateToSchedule(data),
                 style: FilledButton.styleFrom(
                   backgroundColor: _primaryColor.withOpacity(0.1),
                   foregroundColor: _primaryColor,
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 icon: const Icon(Icons.access_time_filled_rounded, size: 18),
                 label: Text(
-                    'Ver ${horarios.length} horarios',
-                    style: const TextStyle(fontWeight: FontWeight.bold)
+                  'Ver ${horarios.length} horarios',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -490,23 +549,21 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
   Widget _buildAvatarForCard(dynamic codPrestador) {
     String? url;
     try {
-      final doc = _allDoctors.firstWhere((d) => d['cod_prestador'] == codPrestador);
+      final doc = _allDoctors.firstWhere(
+        (d) => d['cod_prestador'] == codPrestador,
+      );
       url = doc['avatar_url'];
     } catch (_) {}
 
-    return AvatarDoctor(
-      url: url,
-      radius: 28,
-      primaryColor: _primaryColor,
-    );
+    return AvatarDoctor(url: url, radius: 28, primaryColor: _primaryColor);
   }
 
   void _navigateToSchedule(Map<String, dynamic> data) async {
     String? fotoDoctor;
     try {
       final doctorInfo = _allDoctors.firstWhere(
-              (d) => d['cod_prestador'] == data['cod_prestador'],
-          orElse: () => {}
+        (d) => d['cod_prestador'] == data['cod_prestador'],
+        orElse: () => {},
       );
       fotoDoctor = doctorInfo['avatar_url'];
     } catch (_) {}
@@ -514,18 +571,27 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => _DoctorScheduleScreen(
-          especialidad: _textoSeguro(data['descripcion_especialidad'], 'Especialidad'),
-          codEspecialidad: _parseInt(data['cod_especialidad']),
-          medico: _textoSeguro(data['nombre_prestador'], 'Profesional'),
-          codMedico: _parseInt(data['cod_prestador']),
-          avatarUrl: fotoDoctor,
-          sucursal: _textoSeguro(data['descripcion_sucursal'], 'Sucursal no indicada'),
-          codSucursal: _parseInt(data['cod_sucursal']),
-          fecha: _textoSeguro(data['fecha'], 'Fecha no indicada'),
-          horariosDisponibles: List<String>.from(data['horarios']),
-          turnosCompletos: List<Map<String, dynamic>>.from(data['turnos_data']),
-        ),
+        builder:
+            (context) => _DoctorScheduleScreen(
+              especialidad: _textoSeguro(
+                data['descripcion_especialidad'],
+                'Especialidad',
+              ),
+              codEspecialidad: _parseInt(data['cod_especialidad']),
+              medico: _textoSeguro(data['nombre_prestador'], 'Profesional'),
+              codMedico: _parseInt(data['cod_prestador']),
+              avatarUrl: fotoDoctor,
+              sucursal: _textoSeguro(
+                data['descripcion_sucursal'],
+                'Sucursal no indicada',
+              ),
+              codSucursal: _parseInt(data['cod_sucursal']),
+              fecha: _textoSeguro(data['fecha'], 'Fecha no indicada'),
+              horariosDisponibles: List<String>.from(data['horarios']),
+              turnosCompletos: List<Map<String, dynamic>>.from(
+                data['turnos_data'],
+              ),
+            ),
       ),
     );
 
@@ -536,144 +602,157 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
 
   // --- CONTENIDO DEL FILTRO M3 ---
   Widget _buildFilterContent() {
-    String txtEsp = _selectedSpecialtyId == null ? 'Todas las especialidades' : _selectedSpecialtyLabel;
-    String txtDoc = _selectedDoctorId == null ? 'Todos los profesionales' : _selectedDoctorLabel;
-    String txtSuc = _selectedBranchId == null ? 'Todas las sucursales' : _selectedBranchLabel;
+    String txtEsp =
+        _selectedSpecialtyId == null
+            ? 'Todas las especialidades'
+            : _selectedSpecialtyLabel;
+    String txtDoc =
+        _selectedDoctorId == null
+            ? 'Todos los profesionales'
+            : _selectedDoctorLabel;
+    String txtSuc =
+        _selectedBranchId == null
+            ? 'Todas las sucursales'
+            : _selectedBranchLabel;
 
     String txtFecha = 'Hoy (Por defecto)';
     if (_selectedDate != null) {
       // Reemplazamos las '/' por '-'
-      txtFecha = "${_selectedDate!.day.toString().padLeft(2, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.year}";
+      txtFecha =
+          "${_selectedDate!.day.toString().padLeft(2, '0')}-${_selectedDate!.month.toString().padLeft(2, '0')}-${_selectedDate!.year}";
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildFilterField(
-            label: 'Especialidad',
-            value: txtEsp,
-            icon: Icons.local_hospital_rounded,
-            isActive: _selectedSpecialtyId != null,
-            onTap: () => setState(() {
-              _showSpecialtyDropdown = !_showSpecialtyDropdown;
-              _showDoctorDropdown = false;
-              _showBranchDropdown = false;
-            }),
-            onClear: () {
-              setState(() {
-                _selectedSpecialtyId = null;
-                _selectedSpecialtyLabel = '';
-                _selectedDoctorId = null;
-                _selectedDoctorLabel = '';
-              });
-              _filterDoctorsBySpecialty('');
-            }
+          label: 'Especialidad',
+          value: txtEsp,
+          icon: Icons.local_hospital_rounded,
+          isActive: _selectedSpecialtyId != null,
+          onTap:
+              () => setState(() {
+                _showSpecialtyDropdown = !_showSpecialtyDropdown;
+                _showDoctorDropdown = false;
+                _showBranchDropdown = false;
+              }),
+          onClear: () {
+            setState(() {
+              _selectedSpecialtyId = null;
+              _selectedSpecialtyLabel = '';
+              _selectedDoctorId = null;
+              _selectedDoctorLabel = '';
+            });
+            _filterDoctorsBySpecialty('');
+          },
         ),
         if (_showSpecialtyDropdown)
           _buildGenericDropdown(
-              items: _specialties,
-              idKey: 'cod_especialidad',
-              labelKey: 'descripcion_especialidad',
-              selectedId: _selectedSpecialtyId,
-              onSelect: (item) {
-                setState(() {
-                  _selectedSpecialtyId = item['cod_especialidad'];
-                  _selectedSpecialtyLabel = item['descripcion_especialidad'];
-                  _showSpecialtyDropdown = false;
-                  _selectedDoctorId = null;
-                  _selectedDoctorLabel = '';
-                });
-                _filterDoctorsBySpecialty(_selectedSpecialtyLabel);
-              }
+            items: _specialties,
+            idKey: 'cod_especialidad',
+            labelKey: 'descripcion_especialidad',
+            selectedId: _selectedSpecialtyId,
+            onSelect: (item) {
+              setState(() {
+                _selectedSpecialtyId = item['cod_especialidad'];
+                _selectedSpecialtyLabel = item['descripcion_especialidad'];
+                _showSpecialtyDropdown = false;
+                _selectedDoctorId = null;
+                _selectedDoctorLabel = '';
+              });
+              _filterDoctorsBySpecialty(_selectedSpecialtyLabel);
+            },
           ),
 
         const SizedBox(height: 12),
 
         _buildFilterField(
-            label: 'Profesional',
-            value: txtDoc,
-            icon: Icons.person_rounded,
-            isActive: _selectedDoctorId != null,
-            onTap: () => setState(() {
-              _showDoctorDropdown = !_showDoctorDropdown;
-              _showSpecialtyDropdown = false;
-              _showBranchDropdown = false;
-            }),
-            onClear: () {
-              setState(() {
-                _selectedDoctorId = null;
-                _selectedDoctorLabel = '';
-              });
-            }
+          label: 'Profesional',
+          value: txtDoc,
+          icon: Icons.person_rounded,
+          isActive: _selectedDoctorId != null,
+          onTap:
+              () => setState(() {
+                _showDoctorDropdown = !_showDoctorDropdown;
+                _showSpecialtyDropdown = false;
+                _showBranchDropdown = false;
+              }),
+          onClear: () {
+            setState(() {
+              _selectedDoctorId = null;
+              _selectedDoctorLabel = '';
+            });
+          },
         ),
         if (_showDoctorDropdown) _buildDoctorDropdown(),
 
         const SizedBox(height: 12),
 
         _buildFilterField(
-            label: 'Sucursal',
-            value: txtSuc,
-            icon: Icons.location_on_rounded,
-            isActive: _selectedBranchId != null,
-            onTap: () => setState(() {
-              _showBranchDropdown = !_showBranchDropdown;
-              _showSpecialtyDropdown = false;
-              _showDoctorDropdown = false;
-            }),
-            onClear: () {
-              setState(() {
-                _selectedBranchId = null;
-                _selectedBranchLabel = '';
-              });
-            }
+          label: 'Sucursal',
+          value: txtSuc,
+          icon: Icons.location_on_rounded,
+          isActive: _selectedBranchId != null,
+          onTap:
+              () => setState(() {
+                _showBranchDropdown = !_showBranchDropdown;
+                _showSpecialtyDropdown = false;
+                _showDoctorDropdown = false;
+              }),
+          onClear: () {
+            setState(() {
+              _selectedBranchId = null;
+              _selectedBranchLabel = '';
+            });
+          },
         ),
         if (_showBranchDropdown)
           _buildGenericDropdown(
-              items: _branches,
-              idKey: 'cod_sucursal',
-              labelKey: 'descripcion_sucursal',
-              selectedId: _selectedBranchId,
-              onSelect: (item) {
-                setState(() {
-                  _selectedBranchId = item['cod_sucursal'];
-                  _selectedBranchLabel = item['descripcion_sucursal'];
-                  _showBranchDropdown = false;
-                });
-              }
+            items: _branches,
+            idKey: 'cod_sucursal',
+            labelKey: 'descripcion_sucursal',
+            selectedId: _selectedBranchId,
+            onSelect: (item) {
+              setState(() {
+                _selectedBranchId = item['cod_sucursal'];
+                _selectedBranchLabel = item['descripcion_sucursal'];
+                _showBranchDropdown = false;
+              });
+            },
           ),
 
         const SizedBox(height: 12),
 
         _buildFilterField(
-            label: 'Fecha',
-            value: txtFecha,
-            icon: Icons.calendar_today_rounded,
-            isActive: _selectedDate != null,
-            onTap: () async {
-              setState(() {
-                _showSpecialtyDropdown = false;
-                _showDoctorDropdown = false;
-                _showBranchDropdown = false;
-              });
-              final picked = await showDatePicker(
-                  context: context,
-                  initialDate: _selectedDate ?? DateTime.now(),
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime.now().add(const Duration(days: 30)),
-                  builder: (context, child) {
-                    return Theme(
-                      data: ThemeData.light().copyWith(
-                        colorScheme: ColorScheme.light(primary: _primaryColor),
-                      ),
-                      child: child!,
-                    );
-                  }
-              );
-              if (picked != null) {
-                setState(() => _selectedDate = picked);
-              }
-            },
-            onClear: () => setState(() => _selectedDate = null)
+          label: 'Fecha',
+          value: txtFecha,
+          icon: Icons.calendar_today_rounded,
+          isActive: _selectedDate != null,
+          onTap: () async {
+            setState(() {
+              _showSpecialtyDropdown = false;
+              _showDoctorDropdown = false;
+              _showBranchDropdown = false;
+            });
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _selectedDate ?? DateTime.now(),
+              firstDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 30)),
+              builder: (context, child) {
+                return Theme(
+                  data: ThemeData.light().copyWith(
+                    colorScheme: ColorScheme.light(primary: _primaryColor),
+                  ),
+                  child: child!,
+                );
+              },
+            );
+            if (picked != null) {
+              setState(() => _selectedDate = picked);
+            }
+          },
+          onClear: () => setState(() => _selectedDate = null),
         ),
 
         const SizedBox(height: 24),
@@ -682,7 +761,10 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
         FilledButton.icon(
           onPressed: _buscarTurnos,
           icon: const Icon(Icons.search_rounded, size: 20),
-          label: const Text('Buscar Turnos', style: TextStyle(fontWeight: FontWeight.w600)),
+          label: const Text(
+            'Buscar Turnos',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
           style: FilledButton.styleFrom(
             backgroundColor: _primaryColor,
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -699,7 +781,7 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
     required IconData icon,
     required VoidCallback onTap,
     bool isActive = false,
-    VoidCallback? onClear
+    VoidCallback? onClear,
   }) {
     return InkWell(
       onTap: onTap,
@@ -707,21 +789,42 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isActive ? _primaryColor.withOpacity(0.08) : Colors.transparent,
+          color:
+              isActive ? _primaryColor.withOpacity(0.08) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: isActive ? _primaryColor : _outline),
         ),
         child: Row(
           children: [
-            Icon(icon, color: isActive ? _primaryColor : _onSurfaceVariant, size: 20),
+            Icon(
+              icon,
+              color: isActive ? _primaryColor : _onSurfaceVariant,
+              size: 20,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label, style: TextStyle(fontSize: 11, color: isActive ? _primaryColor : _onSurfaceVariant, fontWeight: FontWeight.w500)),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isActive ? _primaryColor : _onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(value, style: TextStyle(fontSize: 14, color: _onSurface, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
@@ -746,7 +849,7 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
     required String idKey,
     required String labelKey,
     required int? selectedId,
-    required Function(Map<String, dynamic>) onSelect
+    required Function(Map<String, dynamic>) onSelect,
   }) {
     return Container(
       constraints: const BoxConstraints(maxHeight: 250),
@@ -756,42 +859,68 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _outline),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
-      child: items.isEmpty
-          ? const Padding(padding: EdgeInsets.all(16), child: Text("No hay opciones disponibles", style: TextStyle(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center))
-          : ListView.builder(
-        shrinkWrap: true,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: items.length,
-        itemBuilder: (ctx, i) {
-          final item = items[i];
-          final isSelected = item[idKey] == selectedId;
-          return InkWell(
-            onTap: () => onSelect(item),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: isSelected ? _primaryColor.withOpacity(0.08) : Colors.transparent,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      item[labelKey],
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: isSelected ? _primaryColor : _onSurface,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+      child:
+          items.isEmpty
+              ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  "No hay opciones disponibles",
+                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                  textAlign: TextAlign.center,
+                ),
+              )
+              : ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: items.length,
+                itemBuilder: (ctx, i) {
+                  final item = items[i];
+                  final isSelected = item[idKey] == selectedId;
+                  return InkWell(
+                    onTap: () => onSelect(item),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      color:
+                          isSelected
+                              ? _primaryColor.withOpacity(0.08)
+                              : Colors.transparent,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item[labelKey],
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: isSelected ? _primaryColor : _onSurface,
+                                fontWeight:
+                                    isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                              ),
+                            ),
+                          ),
+                          if (isSelected)
+                            Icon(
+                              Icons.check_rounded,
+                              color: _primaryColor,
+                              size: 18,
+                            ),
+                        ],
                       ),
                     ),
-                  ),
-                  if (isSelected) Icon(Icons.check_rounded, color: _primaryColor, size: 18),
-                ],
+                  );
+                },
               ),
-            ),
-          );
-        },
-      ),
     );
   }
 
@@ -806,7 +935,11 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: _outline),
         ),
-        child: const Text("No hay médicos disponibles", style: TextStyle(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center),
+        child: const Text(
+          "No hay médicos disponibles",
+          style: TextStyle(color: Colors.grey, fontSize: 13),
+          textAlign: TextAlign.center,
+        ),
       );
     }
     return Container(
@@ -817,7 +950,11 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _outline),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: ListView.builder(
@@ -827,7 +964,9 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
         itemBuilder: (ctx, i) {
           final doc = _filteredDoctors[i];
           final isSelected = doc['cod_prestador'] == _selectedDoctorId;
-          final specs = List<String>.from(doc['especialidades'] ?? [doc['especialidad']]).join(', ');
+          final specs = List<String>.from(
+            doc['especialidades'] ?? [doc['especialidad']],
+          ).join(', ');
 
           return InkWell(
             onTap: () {
@@ -839,7 +978,10 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
             },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              color: isSelected ? _primaryColor.withOpacity(0.08) : Colors.transparent,
+              color:
+                  isSelected
+                      ? _primaryColor.withOpacity(0.08)
+                      : Colors.transparent,
               child: Row(
                 children: [
                   AvatarDoctor(
@@ -856,20 +998,25 @@ class _QuieroConsultarScreenState extends State<QuieroConsultarScreen> with Sing
                           doc['nombre_prestador'],
                           style: TextStyle(
                             fontSize: 14,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w500,
                             color: isSelected ? _primaryColor : _onSurface,
                           ),
                         ),
                         Text(
                           specs,
-                          style: TextStyle(fontSize: 12, color: _onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _onSurfaceVariant,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
                   ),
-                  if (isSelected) Icon(Icons.check_rounded, color: _primaryColor, size: 18),
+                  if (isSelected)
+                    Icon(Icons.check_rounded, color: _primaryColor, size: 18),
                 ],
               ),
             ),
@@ -933,7 +1080,14 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
-        title: Text('Confirmar Horario', style: TextStyle(fontWeight: FontWeight.w600, color: _onSurface, fontSize: 20)),
+        title: Text(
+          'Confirmar Horario',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: _onSurface,
+            fontSize: 20,
+          ),
+        ),
         iconTheme: IconThemeData(color: _onSurface),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
@@ -946,7 +1100,10 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
             children: [
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   child: Column(
                     children: [
                       // Tarjeta limpia con info del doctor M3 Outlined
@@ -967,21 +1124,35 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                                widget.medico,
-                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _onSurface),
-                                textAlign: TextAlign.center
+                              widget.medico,
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: _onSurface,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 4),
                             Text(
-                                widget.especialidad,
-                                style: TextStyle(color: _primaryColor, fontSize: 14, fontWeight: FontWeight.w600)
+                              widget.especialidad,
+                              style: TextStyle(
+                                color: _primaryColor,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                             const SizedBox(height: 24),
                             Divider(color: _outline, height: 1),
                             const SizedBox(height: 20),
-                            _buildInfoRow(Icons.calendar_today_rounded, widget.fecha),
+                            _buildInfoRow(
+                              Icons.calendar_today_rounded,
+                              widget.fecha,
+                            ),
                             const SizedBox(height: 16),
-                            _buildInfoRow(Icons.location_on_rounded, widget.sucursal),
+                            _buildInfoRow(
+                              Icons.location_on_rounded,
+                              widget.sucursal,
+                            ),
                           ],
                         ),
                       ),
@@ -989,7 +1160,14 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
 
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: Text("Selecciona una hora", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _onSurfaceVariant)),
+                        child: Text(
+                          "Selecciona una hora",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: _onSurfaceVariant,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
 
@@ -997,56 +1175,81 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
                       Wrap(
                         spacing: 12,
                         runSpacing: 12,
-                        children: widget.horariosDisponibles.map((time) {
-                          final turno = widget.turnosCompletos.firstWhere(
-                                  (t) => t['hora_disponible'] == time,
-                              orElse: () => {'estado': 'DESCONOCIDO'}
-                          );
+                        children:
+                            widget.horariosDisponibles.map((time) {
+                              final turno = widget.turnosCompletos.firstWhere(
+                                (t) => t['hora_disponible'] == time,
+                                orElse: () => {'estado': 'DESCONOCIDO'},
+                              );
 
-                          final String estado = (turno['estado'] ?? '').toString().trim().toUpperCase();
-                          final bool isReserved = estado == 'RESERVADO';
-                          final bool isSelected = selectedTime == time;
+                              final String estado =
+                                  (turno['estado'] ?? '')
+                                      .toString()
+                                      .trim()
+                                      .toUpperCase();
+                              final bool isReserved = estado == 'RESERVADO';
+                              final bool isSelected = selectedTime == time;
 
-                          return InkWell(
-                            onTap: isReserved
-                                ? null
-                                : () {
-                              setState(() {
-                                selectedTime = time;
-                                selectedIdDetAux = _parseInt(turno['id_det_aux']);
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                              decoration: BoxDecoration(
-                                // Fondo Tonal si está disponible, Primario si está seleccionado, Gris si no
-                                color: isReserved
-                                    ? Colors.grey.shade200
-                                    : (isSelected ? _primaryColor : _primaryColor.withOpacity(0.08)),
+                              return InkWell(
+                                onTap:
+                                    isReserved
+                                        ? null
+                                        : () {
+                                          setState(() {
+                                            selectedTime = time;
+                                            selectedIdDetAux = _parseInt(
+                                              turno['id_det_aux'],
+                                            );
+                                          });
+                                        },
                                 borderRadius: BorderRadius.circular(12),
-                                // Borde solo visible si está seleccionado
-                                border: Border.all(
-                                    color: isReserved
-                                        ? Colors.transparent
-                                        : (isSelected ? _primaryColor : Colors.transparent)
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    // Fondo Tonal si está disponible, Primario si está seleccionado, Gris si no
+                                    color:
+                                        isReserved
+                                            ? Colors.grey.shade200
+                                            : (isSelected
+                                                ? _primaryColor
+                                                : _primaryColor.withOpacity(
+                                                  0.08,
+                                                )),
+                                    borderRadius: BorderRadius.circular(12),
+                                    // Borde solo visible si está seleccionado
+                                    border: Border.all(
+                                      color:
+                                          isReserved
+                                              ? Colors.transparent
+                                              : (isSelected
+                                                  ? _primaryColor
+                                                  : Colors.transparent),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    time,
+                                    style: TextStyle(
+                                      color:
+                                          isReserved
+                                              ? Colors.grey.shade500
+                                              : (isSelected
+                                                  ? Colors.white
+                                                  : _primaryColor),
+                                      fontWeight: FontWeight.bold,
+                                      decoration:
+                                          isReserved
+                                              ? TextDecoration.lineThrough
+                                              : null,
+                                      decorationColor: Colors.grey.shade500,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              child: Text(
-                                time,
-                                style: TextStyle(
-                                  color: isReserved
-                                      ? Colors.grey.shade500
-                                      : (isSelected ? Colors.white : _primaryColor),
-                                  fontWeight: FontWeight.bold,
-                                  decoration: isReserved ? TextDecoration.lineThrough : null,
-                                  decorationColor: Colors.grey.shade500,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                              );
+                            }).toList(),
                       ),
                       const SizedBox(height: 100), // Espacio para el bottom bar
                     ],
@@ -1065,30 +1268,45 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 color: _backgroundColor, // Mismo color de fondo
-                border: Border(top: BorderSide(color: _outline)), // Borde superior sutil
+                border: Border(
+                  top: BorderSide(color: _outline),
+                ), // Borde superior sutil
               ),
               child: SafeArea(
                 child: SizedBox(
                   width: double.infinity,
                   child: FilledButton(
-                    onPressed: selectedTime.isEmpty || isLoading ? null : _confirmAppointment,
+                    onPressed:
+                        selectedTime.isEmpty || isLoading
+                            ? null
+                            : _confirmAppointment,
                     style: FilledButton.styleFrom(
                       backgroundColor: _primaryColor,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: const StadiumBorder(),
                     ),
-                    child: isLoading
-                        ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                    )
-                        : const Text("Confirmar Reserva", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    child:
+                        isLoading
+                            ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2.5,
+                              ),
+                            )
+                            : const Text(
+                              "Confirmar Reserva",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
                   ),
                 ),
               ),
             ),
-          )
+          ),
         ],
       ),
     );
@@ -1100,8 +1318,15 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
         Icon(icon, size: 20, color: _onSurfaceVariant),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(text, style: TextStyle(fontSize: 14, color: _onSurface, fontWeight: FontWeight.w500)),
-        )
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              color: _onSurface,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1121,16 +1346,45 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
       if (currentUser == null || currentUser.idCliente == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error de sesión. Por favor, reinicia la app.')),
+            const SnackBar(
+              content: Text('Error de sesión. Por favor, reinicia la app.'),
+            ),
           );
         }
         setState(() => isLoading = false);
         return;
       }
 
+      final finalIdCliente =
+          await ClientApiService.resolveLabClientId(currentUser);
+      if (finalIdCliente == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No se pudo identificar tu perfil de laboratorio. '
+                'Cierra sesión e ingresa de nuevo.',
+              ),
+            ),
+          );
+        }
+        setState(() => isLoading = false);
+        return;
+      }
+
+      print('=== AGENDAR TURNO (post_agendar_turno) ===');
+      print('fechaReserva: $fechaFormateada');
+      print('ec_cliente (sesión): ${currentUser.idCliente}');
+      print('cliente.cli_id (body): $finalIdCliente');
+      print("idPersonaProf: ${widget.codMedico}");
+      print("idDetAux: $selectedIdDetAux");
+      print("idBox: ${_parseInt(turnoSeleccionado['cod_box'])}");
+      print("idSucursal: ${widget.codSucursal}");
+      print("======================================");
+
       final resultado = await ConsultationService().agendarTurno(
         fechaReserva: fechaFormateada,
-        idCliente: currentUser.idCliente!,
+        idCliente: finalIdCliente,
         idPersonaProf: widget.codMedico,
         idDetAux: selectedIdDetAux!,
         idBox: _parseInt(turnoSeleccionado['cod_box']),
@@ -1146,19 +1400,23 @@ class _DoctorScheduleScreenState extends State<_DoctorScheduleScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => ConsultaAgendadaScreen(
-              specialty: widget.especialidad,
-              doctor: widget.medico,
-              branch: widget.sucursal,
-              date: widget.fecha,
-              time: selectedTime,
-            ),
+            builder:
+                (context) => ConsultaAgendadaScreen(
+                  specialty: widget.especialidad,
+                  doctor: widget.medico,
+                  branch: widget.sucursal,
+                  date: widget.fecha,
+                  time: selectedTime,
+                ),
           ),
           result: true,
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(resultado['message'] ?? 'Error desconocido'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(resultado['message'] ?? 'Error desconocido'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (e) {
