@@ -26,6 +26,7 @@ class ClientApiService {
     Map<String, dynamic> clienteData,
     int idClienteFallback,
   ) {
+    final prepagaNombre = clienteData['prepaga_nombre']?.toString().trim();
     return app_user.User(
       nombres: clienteData['nombre'] ?? '',
       apellidos: clienteData['apellido'] ?? '',
@@ -34,9 +35,13 @@ class ClientApiService {
       celular: clienteData['telefono'] ?? '',
       email: clienteData['email'] ?? '',
       seguro: clienteData['prepaga']?.toString() ?? '',
+      seguroNombre: prepagaNombre != null && prepagaNombre.isNotEmpty
+          ? prepagaNombre
+          : null,
       password: '',
       // id_cliente en JSON = PK ec_cliente (put_modificar_usuario); cli_id en URL de get_cliente
       idCliente: parseIdCliente(clienteData['id_cliente']) ?? idClienteFallback,
+      cliIdCliente: parseIdCliente(clienteData['id_cliente_final']),
       ruc: clienteData['ruc']?.toString(),
       razonSocial: clienteData['razon_social']?.toString(),
       sexo: clienteData['sex_id_sexo']?.toString(),
@@ -294,6 +299,65 @@ class ClientApiService {
     );
   }
 
+  /// Perfil completo para Mi Perfil: usa cli_id de post_autenticacion y get_cliente.
+  static Future<app_user.User?> fetchClientProfileByEmail(String email) async {
+    print('🔄 [ClientApi] fetchClientProfileByEmail: $email');
+
+    final authData = await getAuthResponseByEmail(email);
+    if (authData == null) {
+      try {
+        return await UserService.getUserByEmail(email);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final ids = _resolveClientIds(authData);
+    if (ids.cliId == null) {
+      try {
+        return await UserService.getUserByEmail(email);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    if (authData['status'] == 'success') {
+      final result = await loadClientAfterAuth(
+        email: email,
+        authData: Map<String, dynamic>.from(authData),
+      );
+      if (result.user != null) return result.user;
+    } else {
+      final fetch = await getClientByIdWithResult(ids.cliId!);
+      if (fetch.isSuccess && fetch.user != null) {
+        var user = fetch.user!;
+        if (ids.ecId != null && user.idCliente != ids.ecId) {
+          user = app_user.User(
+            nombres: user.nombres,
+            apellidos: user.apellidos,
+            cedula: user.cedula,
+            direccion: user.direccion,
+            celular: user.celular,
+            email: user.email,
+            seguro: user.seguro,
+            password: user.password,
+            idCliente: ids.ecId,
+            ruc: user.ruc,
+            razonSocial: user.razonSocial,
+            sexo: user.sexo,
+          );
+        }
+        return user;
+      }
+    }
+
+    try {
+      return await UserService.getUserByEmail(email);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Obtener cliente completo por email (Orquestador)
   static Future<app_user.User?> getClientByEmail(String email) async {
     print('🔄 [ClientApi] getClientByEmail: $email');
@@ -351,25 +415,38 @@ class ClientApiService {
     return false;
   }
 
-  // Actualizar Cliente
+  // Actualizar Cliente (PUT /app/put_modificar_usuario → pr_lab_update_cliente_json)
   static Future<Map<String, dynamic>?> updateClientData({
     required int idCliente,
     required String idPrepaga,
     String? telefono,
     String? direccion,
+    String? nombre,
+    String? apellido,
+    String? email,
+    String? cedula,
   }) async {
-    // Validaciones de negocio antes de llamar a la API
     if (idPrepaga.isEmpty) return {'success': false, 'message': 'Falta prepaga'};
-    if (telefono == null || telefono.isEmpty) return {'success': false, 'message': 'Falta teléfono'};
-    if (direccion == null || direccion.isEmpty) return {'success': false, 'message': 'Falta dirección'};
+    if (telefono == null || telefono.isEmpty) {
+      return {'success': false, 'message': 'Falta teléfono'};
+    }
+    if (direccion == null || direccion.isEmpty) {
+      return {'success': false, 'message': 'Falta dirección'};
+    }
 
-    final body = {
-      'idCliente': idCliente.toString(),
+    final body = <String, dynamic>{
+      'idCliente': idCliente,
       'telefono': telefono.trim(),
       'direccion': direccion.trim(),
-      'idPrepaga': idPrepaga.trim(),
+      'idPrepaga': int.tryParse(idPrepaga.trim()) ?? idPrepaga.trim(),
     };
 
+    if (nombre != null && nombre.isNotEmpty) body['nombre'] = nombre.trim();
+    if (apellido != null && apellido.isNotEmpty) body['apellido'] = apellido.trim();
+    if (email != null && email.isNotEmpty) body['email'] = email.trim();
+    if (cedula != null && cedula.isNotEmpty) body['cedula'] = cedula.trim();
+
+    print('🚀 [ClientApi] PUT /app/put_modificar_usuario | Body: $body');
     final responseData = await ApiClient.put('/app/put_modificar_usuario', body);
 
     if (responseData != null) {
@@ -377,18 +454,18 @@ class ClientApiService {
         return {
           'success': true,
           'message': responseData['mensaje'] ?? 'Actualizado correctamente',
-          'id_cliente': responseData['id_cliente']
-        };
-      } else {
-        // Si la API responde 200 pero con status error en el JSON
-        return {
-          'success': false,
-          'message': responseData['message'] ?? responseData['description'] ?? 'Error desconocido'
+          'id_cliente': responseData['id_cliente'],
         };
       }
+      return {
+        'success': false,
+        'message': _extractApiMessage(
+          responseData is Map ? Map<String, dynamic>.from(responseData) : null,
+        ),
+      };
     }
 
-    return {'success': false, 'message': 'Error de conexión'};
+    return {'success': false, 'message': 'Error de conexión con el servidor.'};
   }
 
   // Solicitar Baja de Cuenta

@@ -18,6 +18,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  /// Consulta con Lyra: oculto temporalmente hasta habilitar el chat IA.
+  static const bool _showLyraConsultationCard = false;
+
   // --- Colores Material 3 ---
   final Color _primaryColor = const Color(0xFFB47EDB); // Lila
   final Color _secondaryColor = const Color(0xFF09D5D6); // Cyan
@@ -105,13 +108,13 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
                   const SizedBox(height: 24),
 
-                  // --- TARJETA DE IA EN MODO CLARO ---
-                  FadeTransition(
-                    opacity: _contentFade,
-                    child: _buildAIConsultationCard(context),
-                  ),
-
-                  const SizedBox(height: 24),
+                  if (_showLyraConsultationCard) ...[
+                    FadeTransition(
+                      opacity: _contentFade,
+                      child: _buildAIConsultationCard(context),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   FadeTransition(
                     opacity: _contentFade,

@@ -7,11 +7,15 @@ import 'verification_otp_screen.dart';
 class GenerarContrasenaScreen extends StatefulWidget {
   final User user;
   final int prepagaCode;
+  final String? fechaNacimiento;
+  final int? sexIdSexo;
 
   const GenerarContrasenaScreen({
     Key? key,
     required this.user,
     required this.prepagaCode,
+    this.fechaNacimiento,
+    this.sexIdSexo,
   }) : super(key: key);
 
   @override
@@ -132,6 +136,8 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
         prepaga: widget.prepagaCode,
         direccion: widget.user.direccion,
         telefono: widget.user.celular,
+        fechaNacimiento: widget.fechaNacimiento,
+        sexIdSexo: widget.sexIdSexo,
       );
 
       if (!mounted) return;
@@ -146,6 +152,7 @@ class _GenerarContrasenaScreenState extends State<GenerarContrasenaScreen> {
           email: widget.user.email,
           seguro: widget.user.seguro,
           password: passwordController.text.trim(),
+          sexo: widget.sexIdSexo?.toString(),
         );
         await UserService.saveUser(updatedUser);
 

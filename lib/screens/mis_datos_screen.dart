@@ -30,6 +30,7 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
   bool isEditing = false;
   bool isSaving = false;
   bool _needsPrepagaSetup = false;
+  bool _isLoadingProfile = true;
 
   // Paleta de Colores Moderna
   final Color primaryPurple = const Color(0xFFB47EDB);
@@ -43,71 +44,114 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-    _loadPrepagas();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncUserDataInBackground();
-    });
+    _initEmptyControllers();
+    final cached = UserService.getCurrentUser();
+    if (cached != null) _applyUserToForm(cached);
+    _loadProfileAndPrepagas();
   }
 
-  Future<void> _loadPrepagas() async {
-    setState(() => _isLoadingPrepagas = true);
-    try {
-      final prepagas = await PrepagaService.getPrepagas();
+  void _initEmptyControllers() {
+    nombresController = TextEditingController();
+    apellidosController = TextEditingController();
+    cedulaController = TextEditingController();
+    direccionController = TextEditingController();
+    celularController = TextEditingController();
+    emailController = TextEditingController();
+  }
+
+  String? _normalizePrepagaId(String? raw) {
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty || trimmed == 'null' || trimmed == '0') return null;
+    return trimmed;
+  }
+
+  void _applyUserToForm(User user) {
+    nombresController.text = user.nombres;
+    apellidosController.text = user.apellidos;
+    cedulaController.text = user.cedula;
+    direccionController.text = user.direccion;
+    celularController.text = user.celular;
+    emailController.text = user.email;
+    _selectedPrepagaId = _normalizePrepagaId(user.seguro);
+  }
+
+  void _mergePrepagasConAsignada(User? user) {
+    _listaPrepagas = PrepagaService.mergeAssignedPrepaga(
+      prepagas: _listaPrepagas,
+      assignedId: _selectedPrepagaId,
+      assignedNombre: user?.seguroNombre,
+    );
+  }
+
+  String _resolvePrepagaNombre() {
+    if (_selectedPrepagaId == null) return 'Sin seguro seleccionado';
+    if (_listaPrepagas.isEmpty) return 'Cargando...';
+    final prepaga = PrepagaService.findById(_listaPrepagas, _selectedPrepagaId);
+    if (prepaga != null) return prepaga.nombre;
+    return 'Seguro médico asignado';
+  }
+
+  void _updatePrepagaSetupState({bool initial = false}) {
+    _selectedPrepagaId = _normalizePrepagaId(_selectedPrepagaId);
+    _needsPrepagaSetup = _selectedPrepagaId == null;
+    if (initial) {
+      isEditing = _needsPrepagaSetup;
+    }
+  }
+
+  Future<void> _loadProfileAndPrepagas() async {
+    final email = UserService.getCurrentUser()?.email;
+    if (email == null) {
       if (mounted) {
         setState(() {
-          _listaPrepagas = prepagas;
-          if (_selectedPrepagaId != null && _listaPrepagas.isNotEmpty) {
-            final existe = _listaPrepagas.any((element) => element.id == _selectedPrepagaId);
-            if (!existe) _selectedPrepagaId = null;
-          }
+          _isLoadingProfile = false;
+          _isLoadingPrepagas = false;
+          _updatePrepagaSetupState(initial: true);
         });
       }
-    } catch (e) {
-      debugPrint('Error al cargar prepagas: $e');
-    } finally {
-      if (mounted) setState(() => _isLoadingPrepagas = false);
+      return;
     }
-  }
 
-  void _syncUserDataInBackground() {
-    final currentUser = UserService.getCurrentUser();
-    if (currentUser != null) {
-      UserService.syncUserByEmailInBackground(currentUser.email).then((_) {
-        if (mounted) setState(() {});
-      });
-    }
-  }
+    setState(() => _isLoadingPrepagas = true);
 
-  void _loadUserData() {
-    final currentUser = UserService.getCurrentUser();
-    if (currentUser != null) {
-      nombresController = TextEditingController(text: currentUser.nombres);
-      apellidosController = TextEditingController(text: currentUser.apellidos);
-      cedulaController = TextEditingController(text: currentUser.cedula);
-      direccionController = TextEditingController(text: currentUser.direccion);
-      celularController = TextEditingController(text: currentUser.celular);
-      emailController = TextEditingController(text: currentUser.email);
+    try {
+      final results = await Future.wait([
+        PrepagaService.getPrepagas(),
+        ClientApiService.fetchClientProfileByEmail(email),
+      ]);
 
-      String? seguroTemp = currentUser.seguro;
-      if (seguroTemp != null && (seguroTemp.isEmpty || seguroTemp == 'null' || seguroTemp == '0')) {
-        _selectedPrepagaId = null;
+      if (!mounted) return;
+
+      final prepagas = results[0] as List<Prepaga>;
+      final apiUser = results[1] as User?;
+
+      User? userForForm = apiUser;
+      if (apiUser != null) {
+        await UserService.saveUser(apiUser);
+        UserService.setCurrentUser(apiUser);
+        _applyUserToForm(apiUser);
       } else {
-        _selectedPrepagaId = seguroTemp;
+        userForForm = UserService.getCurrentUser();
       }
-      _needsPrepagaSetup = _selectedPrepagaId == null;
-      if (_needsPrepagaSetup) {
-        isEditing = true;
+
+      _listaPrepagas = prepagas;
+      _mergePrepagasConAsignada(userForForm);
+
+      setState(() {
+        _isLoadingPrepagas = false;
+        _isLoadingProfile = false;
+        _updatePrepagaSetupState(initial: true);
+      });
+    } catch (e) {
+      debugPrint('Error al cargar perfil: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingPrepagas = false;
+          _isLoadingProfile = false;
+          _updatePrepagaSetupState(initial: true);
+        });
       }
-    } else {
-      nombresController = TextEditingController();
-      apellidosController = TextEditingController();
-      cedulaController = TextEditingController();
-      direccionController = TextEditingController();
-      celularController = TextEditingController();
-      emailController = TextEditingController();
-      _selectedPrepagaId = null;
     }
   }
 
@@ -294,6 +338,10 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
           idPrepaga: _selectedPrepagaId!,
           telefono: celularController.text.trim(),
           direccion: direccionController.text.trim(),
+          nombre: nombresController.text.trim(),
+          apellido: apellidosController.text.trim(),
+          email: emailController.text.trim(),
+          cedula: cedulaController.text.trim(),
         );
 
         if (result != null && result['success'] == true) {
@@ -348,19 +396,7 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    String nombrePrepagaActual = 'Sin seguro seleccionado';
-    if (_selectedPrepagaId != null) {
-      if (_listaPrepagas.isNotEmpty) {
-        try {
-          final prepaga = _listaPrepagas.firstWhere((p) => p.id == _selectedPrepagaId);
-          nombrePrepagaActual = prepaga.nombre;
-        } catch (_) {
-          nombrePrepagaActual = 'Sin seguro seleccionado';
-        }
-      } else {
-        nombrePrepagaActual = 'Cargando...';
-      }
-    }
+    final nombrePrepagaActual = _resolvePrepagaNombre();
 
     return Scaffold(
       backgroundColor: backgroundLight,
@@ -384,7 +420,9 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
           ),
         ],
       ),
-      body: Form(
+      body: _isLoadingProfile
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
         key: _formKey,
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -683,8 +721,16 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
   }
 
   Widget _buildPrepagaDropdown() {
+    final idsEnLista = _listaPrepagas.map((p) => p.id).toSet();
+    final valorDropdown = _selectedPrepagaId != null &&
+            idsEnLista.any((id) => PrepagaService.idsMatch(id, _selectedPrepagaId))
+        ? _listaPrepagas
+            .firstWhere((p) => PrepagaService.idsMatch(p.id, _selectedPrepagaId))
+            .id
+        : null;
+
     return DropdownButtonFormField<String>(
-      value: _selectedPrepagaId,
+      value: valorDropdown,
       icon: Icon(Icons.keyboard_arrow_down_rounded, color: primaryPurple),
       items: _listaPrepagas.map((prepaga) {
         return DropdownMenuItem(value: prepaga.id, child: Text(prepaga.nombre, overflow: TextOverflow.ellipsis));

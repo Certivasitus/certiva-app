@@ -111,11 +111,20 @@ class ApiClient {
     } else {
       print('❌ [ApiClient] Error HTTP ${response.statusCode}');
       try {
-        return jsonDecode(response.body);
+        if (response.body.isEmpty) {
+          return {'_httpStatus': response.statusCode, 'mensaje': 'Error HTTP ${response.statusCode}'};
+        }
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          return {...decoded, '_httpStatus': response.statusCode};
+        }
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded)..['_httpStatus'] = response.statusCode;
+        }
       } catch (e) {
         print('⚠️ [ApiClient] La respuesta de error no es un JSON válido.');
-        return null;
       }
+      return null;
     }
   }
 }

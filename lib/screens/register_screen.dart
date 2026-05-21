@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'login_screen.dart';
 import '../services/prepaga_service.dart'; // <--- Ajusta esta ruta si es necesario
 import '../models/user.dart';
@@ -39,8 +40,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // --- VARIABLES DE ESTADO ---
   List<Prepaga> _listaPrepagas = [];
   String? _selectedPrepagaId;
+  String? _selectedSexoId;
+  DateTime? _fechaNacimiento;
   bool _isLoadingPrepagas = true;
   bool _isLoadingSubmit = false;
+
+  /// Valores de certiva_situs.ec_sexo: 1 = MASCULINO, 2 = FEMENINO
+  static const List<Map<String, String>> _opcionesSexo = [
+    {'id': '1', 'label': 'Masculino'},
+    {'id': '2', 'label': 'Femenino'},
+  ];
 
   @override
   void initState() {
@@ -91,6 +100,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return;
       }
 
+      if (_fechaNacimiento == null) {
+        _showErrorSnackBar('Por favor, seleccione su fecha de nacimiento.');
+        return;
+      }
+
+      if (_selectedSexoId == null) {
+        _showErrorSnackBar('Por favor, seleccione su sexo.');
+        return;
+      }
+
       setState(() => _isLoadingSubmit = true);
       FocusScope.of(context).unfocus();
 
@@ -98,6 +117,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       try {
         await Future.delayed(const Duration(milliseconds: 500));
+
+        final fechaNacimientoStr =
+            DateFormat('dd-MM-yyyy').format(_fechaNacimiento!);
+        final sexId = int.parse(_selectedSexoId!);
 
         final user = User(
           nombres: namesCtrl.text.trim(),
@@ -108,6 +131,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           email: emailCtrl.text.trim(),
           seguro: insuranceCtrl.text,
           password: '',
+          sexo: _selectedSexoId,
         );
 
         await UserService.saveUser(user);
@@ -116,7 +140,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => GenerarContrasenaScreen(user: user, prepagaCode: prepagaCodeInt),
+              builder: (context) => GenerarContrasenaScreen(
+                user: user,
+                prepagaCode: prepagaCodeInt,
+                fechaNacimiento: fechaNacimientoStr,
+                sexIdSexo: sexId,
+              ),
             ),
           );
         }
@@ -236,6 +265,99 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+  Widget _buildFechaNacimientoField() {
+    return InkWell(
+      onTap: _isLoadingSubmit ? null : _seleccionarFechaNacimiento,
+      borderRadius: BorderRadius.circular(16),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          hintText: 'Fecha de nacimiento',
+          hintStyle: TextStyle(
+            color: Colors.grey.shade500,
+            fontSize: 15,
+            fontWeight: FontWeight.w400,
+          ),
+          prefixIcon: Icon(Icons.cake_outlined, color: Colors.grey.shade500, size: 22),
+          suffixIcon: Icon(Icons.calendar_today_rounded, color: Colors.grey.shade500, size: 20),
+          filled: true,
+          fillColor: _isLoadingSubmit ? Colors.grey.shade200 : _inputFillColor,
+          contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: _primaryLilac.withOpacity(0.5), width: 1.5),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFBA1A1A), width: 1),
+          ),
+        ),
+        child: _fechaNacimiento != null
+            ? Text(
+                DateFormat('dd/MM/yyyy').format(_fechaNacimiento!),
+                style: TextStyle(color: _onSurface, fontWeight: FontWeight.w500, fontSize: 15),
+              )
+            : const SizedBox(height: 20),
+      ),
+    );
+  }
+
+  Future<void> _seleccionarFechaNacimiento() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaNacimiento ?? DateTime(now.year - 25),
+      firstDate: DateTime(1900),
+      lastDate: now,
+      locale: const Locale('es', 'ES'),
+      helpText: 'Seleccione su fecha de nacimiento',
+    );
+    if (picked != null) {
+      setState(() => _fechaNacimiento = picked);
+    }
+  }
+
+  Widget _buildSexoDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedSexoId,
+      style: TextStyle(color: _onSurface, fontWeight: FontWeight.w500, fontSize: 15),
+      icon: Icon(Icons.keyboard_arrow_down_rounded, color: Colors.grey.shade500),
+      decoration: InputDecoration(
+        hintText: 'Seleccione sexo',
+        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 15, fontWeight: FontWeight.w400),
+        prefixIcon: Icon(Icons.wc_outlined, color: Colors.grey.shade500, size: 22),
+        filled: true,
+        fillColor: _isLoadingSubmit ? Colors.grey.shade200 : _inputFillColor,
+        contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: _primaryLilac.withOpacity(0.5), width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFBA1A1A), width: 1),
+        ),
+      ),
+      items: _opcionesSexo.map((opcion) {
+        return DropdownMenuItem<String>(
+          value: opcion['id'],
+          child: Text(opcion['label']!, style: TextStyle(fontSize: 15, color: _onSurface)),
+        );
+      }).toList(),
+      onChanged: _isLoadingSubmit
+          ? null
+          : (val) => setState(() => _selectedSexoId = val),
+      validator: (val) => val == null ? 'Requerido' : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -322,6 +444,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 16),
 
                     _buildMinimalField(hint: 'Cédula de Identidad', controller: idCtrl, icon: Icons.badge_outlined, isNumeric: true),
+                    const SizedBox(height: 16),
+
+                    _buildFechaNacimientoField(),
+                    const SizedBox(height: 16),
+
+                    _buildSexoDropdown(),
                     const SizedBox(height: 16),
 
                     _buildMinimalField(hint: 'Dirección particular', controller: addressCtrl, icon: Icons.location_on_outlined),

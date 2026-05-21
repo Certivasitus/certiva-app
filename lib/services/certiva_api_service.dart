@@ -20,11 +20,13 @@ class CertivaApiService {
     required int prepaga,
     required String direccion,
     required String telefono,
+    String? fechaNacimiento,
+    int? sexIdSexo,
   }) async {
     // Se eliminan caracteres no numéricos para cumplir con el tipo NUMBER(20) de Oracle
     final telefonoLimpio = telefono.replaceAll(RegExp(r'[^0-9]'), '');
 
-    final body = {
+    final body = <String, dynamic>{
       'email': email,
       'password': password,
       'nombre': nombre,
@@ -36,6 +38,13 @@ class CertivaApiService {
       'direccion': direccion,
       'telefono': telefonoLimpio,
     };
+
+    if (fechaNacimiento != null && fechaNacimiento.isNotEmpty) {
+      body['fechaNacimiento'] = fechaNacimiento;
+    }
+    if (sexIdSexo != null) {
+      body['sex_id_sexo'] = sexIdSexo;
+    }
 
     print('🚀 [CertivaApi] POST $_endpointRegistro | Body: $body');
 

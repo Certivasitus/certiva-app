@@ -40,6 +40,12 @@ class User extends HiveObject {
   @HiveField(11)
   String? sexo; // 1 = MASCULINO, 2 = FEMENINO
 
+  /// Nombre de la prepaga (solo en memoria; no persiste en Hive).
+  String? seguroNombre;
+
+  /// cli_id_cliente para get_cliente (solo en memoria).
+  int? cliIdCliente;
+
   User({
     required this.nombres,
     required this.apellidos,
@@ -53,6 +59,8 @@ class User extends HiveObject {
     this.ruc,
     this.razonSocial,
     this.sexo,
+    this.seguroNombre,
+    this.cliIdCliente,
   });
 
   String get nombreCompleto => '$nombres $apellidos';
@@ -71,6 +79,8 @@ class User extends HiveObject {
       'ruc': ruc,
       'razonSocial': razonSocial,
       'sexo': sexo,
+      'seguroNombre': seguroNombre,
+      'cliIdCliente': cliIdCliente,
     };
   }
 
@@ -88,6 +98,8 @@ class User extends HiveObject {
       ruc: map['ruc'],
       razonSocial: map['razonSocial'],
       sexo: map['sexo'],
+      seguroNombre: map['seguroNombre'],
+      cliIdCliente: map['cliIdCliente'],
     );
   }
 } 
