@@ -325,7 +325,7 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
         return;
       }
 
-      if (celularController.text.trim().isEmpty || direccionController.text.trim().isEmpty || _selectedPrepagaId == null) {
+      if (celularController.text.trim().isEmpty || direccionController.text.trim().isEmpty) {
         CustomSnackBar.showError(context, message: 'Por favor, complete todos los campos obligatorios.', title: 'Faltan datos');
         return;
       }
@@ -335,7 +335,7 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
       try {
         final result = await ClientApiService.updateClientData(
           idCliente: currentUser.idCliente!,
-          idPrepaga: _selectedPrepagaId!,
+          idPrepaga: _selectedPrepagaId ?? '',
           telefono: celularController.text.trim(),
           direccion: direccionController.text.trim(),
           nombre: nombresController.text.trim(),
@@ -357,7 +357,7 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
             razonSocial: currentUser.razonSocial,
             direccion: direccionController.text,
             celular: celularController.text,
-            seguro: _selectedPrepagaId!,
+            seguro: _selectedPrepagaId ?? '',
           );
 
           await UserService.saveUser(updatedUser);
@@ -505,9 +505,7 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                _needsPrepagaSetup
-                                    ? 'Selecciona tu seguro médico, completa celular y dirección, luego pulsa Guardar.'
-                                    : 'Modifica tus datos de contacto y seguro médico.',
+                                'Modifica tus datos de contacto.',
                                 style: const TextStyle(fontSize: 13),
                               ),
                             ),
@@ -542,9 +540,7 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
                           if (isEditing) const SizedBox(height: 16),
                           if (!isEditing) Divider(color: Colors.grey.shade200, height: 1),
 
-                          isEditing
-                              ? _buildPrepagaDropdown()
-                              : _buildProfileItem(icon: Icons.health_and_safety_outlined, label: 'Seguro Médico', value: nombrePrepagaActual),
+                          _buildProfileItem(icon: Icons.health_and_safety_outlined, label: 'Seguro Médico', value: nombrePrepagaActual),
 
                           if (isEditing) const SizedBox(height: 16),
                           if (!isEditing) Divider(color: Colors.grey.shade200, height: 1),
@@ -720,35 +716,4 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
     );
   }
 
-  Widget _buildPrepagaDropdown() {
-    final idsEnLista = _listaPrepagas.map((p) => p.id).toSet();
-    final valorDropdown = _selectedPrepagaId != null &&
-            idsEnLista.any((id) => PrepagaService.idsMatch(id, _selectedPrepagaId))
-        ? _listaPrepagas
-            .firstWhere((p) => PrepagaService.idsMatch(p.id, _selectedPrepagaId))
-            .id
-        : null;
-
-    return DropdownButtonFormField<String>(
-      value: valorDropdown,
-      icon: Icon(Icons.keyboard_arrow_down_rounded, color: primaryPurple),
-      items: _listaPrepagas.map((prepaga) {
-        return DropdownMenuItem(value: prepaga.id, child: Text(prepaga.nombre, overflow: TextOverflow.ellipsis));
-      }).toList(),
-      onChanged: (val) => setState(() => _selectedPrepagaId = val),
-      decoration: InputDecoration(
-        labelText: 'Seguro Médico',
-        labelStyle: TextStyle(color: textGrey),
-        floatingLabelStyle: TextStyle(color: primaryPurple, fontWeight: FontWeight.bold),
-        prefixIcon: Icon(Icons.health_and_safety_outlined, color: primaryPurple),
-        filled: true,
-        fillColor: inputFillColor,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: primaryPurple, width: 1.5)),
-      ),
-      validator: (value) => value == null ? 'Seleccione un seguro' : null,
-      hint: _isLoadingPrepagas ? const Text('Cargando...') : const Text('Seleccione...'),
-    );
-  }
 }
