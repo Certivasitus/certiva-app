@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'register_screen.dart';
 import 'recuperar_contrasena_screen.dart';
@@ -124,7 +123,8 @@ class _LoginScreenState extends State<LoginScreen> {
       await UserService.clearLoginCredentials();
     }
 
-    app_user.User? userToSet = await ClientApiService.getClientByEmail(email);
+    final loadResult = await ClientApiService.getClientByEmailWithResult(email);
+    app_user.User? userToSet = loadResult.user;
     if (userToSet == null) {
       userToSet = await UserService.getUserByEmail(email);
     }
@@ -134,10 +134,26 @@ class _LoginScreenState extends State<LoginScreen> {
       UserService.setCurrentUser(userToSet);
 
       if (mounted) {
+        if (loadResult.requiresPrepagaSetup) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Completa tu seguro médico en Mi Perfil para finalizar la configuración.',
+                style: TextStyle(color: Colors.white),
+              ),
+              backgroundColor: _primaryLilac,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
       }
     } else {
-      _showErrorSnackBar('No se pudieron obtener los datos de la cuenta.');
+      debugPrint('❌ [Login] ${loadResult.debugMessage}');
+      _showErrorSnackBar(
+        'No se pudieron obtener los datos de la cuenta. ${loadResult.debugMessage}',
+      );
     }
   }
 
@@ -227,11 +243,17 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      final app_user.User? userFromApi = await ClientApiService.getClientByEmail(email);
+      final loadResult = await ClientApiService.loadClientAfterAuth(
+        email: email,
+        authData: Map<String, dynamic>.from(authData),
+      );
+      final app_user.User? userFromApi = loadResult.user;
 
-      if (userFromApi != null && userFromApi.idCliente != null) {
+      final cliIdForApi = ClientApiService.parseIdCliente(authData['id_cliente']);
+      if (userFromApi != null && userFromApi.idCliente != null && cliIdForApi != null) {
         final estaBloqueado = await ClientApiService.isAccountBlocked(
           userFromApi.idCliente!,
+          cliIdCliente: cliIdForApi,
         );
         if (estaBloqueado) {
           final confirmoReactivacion = await _mostrarDialogoReactivacion(
@@ -250,15 +272,32 @@ class _LoginScreenState extends State<LoginScreen> {
         await UserService.saveUser(userFromApi);
         UserService.setCurrentUser(userFromApi);
         if (mounted) {
+          if (loadResult.requiresPrepagaSetup) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Completa tu seguro médico en Mi Perfil para finalizar la configuración.',
+                  style: TextStyle(color: Colors.white),
+                ),
+                backgroundColor: _primaryLilac,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
         }
       } else {
-        _showErrorSnackBar('No se pudieron obtener los datos de la cuenta.');
+        debugPrint('❌ [GoogleLogin] ${loadResult.debugMessage}');
+        _showErrorSnackBar(
+          'No se pudieron obtener los datos de la cuenta. ${loadResult.debugMessage}',
+        );
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('❌ [GoogleLogin] Excepción: $e\n$st');
       _showErrorSnackBar('Error validando usuario: $e');
     } finally {
       if (mounted) setState(() => _isLoadingGoogle = false);

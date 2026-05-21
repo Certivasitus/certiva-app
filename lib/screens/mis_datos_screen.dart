@@ -29,6 +29,7 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
 
   bool isEditing = false;
   bool isSaving = false;
+  bool _needsPrepagaSetup = false;
 
   // Paleta de Colores Moderna
   final Color primaryPurple = const Color(0xFFB47EDB);
@@ -94,6 +95,10 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
         _selectedPrepagaId = null;
       } else {
         _selectedPrepagaId = seguroTemp;
+      }
+      _needsPrepagaSetup = _selectedPrepagaId == null;
+      if (_needsPrepagaSetup) {
+        isEditing = true;
       }
     } else {
       nombresController = TextEditingController();
@@ -314,6 +319,7 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
             setState(() {
               isEditing = false;
               isSaving = false;
+              _needsPrepagaSetup = false;
             });
             CustomSnackBar.showSuccess(context, title: '¡Todo listo!', message: result['message'] ?? 'Tu perfil ha sido actualizado correctamente.');
           }
@@ -418,6 +424,30 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (_needsPrepagaSetup) ...[
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.amber.shade300),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.health_and_safety_outlined, color: Colors.amber.shade800),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Debes seleccionar tu seguro médico y guardar los cambios para continuar usando la app con normalidad.',
+                                style: TextStyle(fontSize: 13, color: Colors.amber.shade900, height: 1.4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     // Banner de Edición
                     AnimatedSize(
                       duration: const Duration(milliseconds: 300),
@@ -435,8 +465,13 @@ class _MisDatosScreenState extends State<MisDatosScreen> {
                           children: [
                             Icon(Icons.info_outline_rounded, color: accentCyan),
                             const SizedBox(width: 12),
-                            const Expanded(
-                              child: Text("Modifica tus datos de contacto y seguro médico.", style: TextStyle(fontSize: 13)),
+                            Expanded(
+                              child: Text(
+                                _needsPrepagaSetup
+                                    ? 'Selecciona tu seguro médico, completa celular y dirección, luego pulsa Guardar.'
+                                    : 'Modifica tus datos de contacto y seguro médico.',
+                                style: const TextStyle(fontSize: 13),
+                              ),
                             ),
                           ],
                         ),

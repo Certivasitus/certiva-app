@@ -96,7 +96,18 @@ class ApiClient {
       }
     } else if (response.statusCode == 404) {
       print('❌ [ApiClient] Recurso no encontrado (404)');
-      return null;
+      try {
+        if (response.body.isNotEmpty) {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map<String, dynamic>) {
+            return {...decoded, '_httpStatus': 404};
+          }
+          if (decoded is Map) {
+            return Map<String, dynamic>.from(decoded)..['_httpStatus'] = 404;
+          }
+        }
+      } catch (_) {}
+      return {'_httpStatus': 404, 'mensaje': 'Recurso no encontrado'};
     } else {
       print('❌ [ApiClient] Error HTTP ${response.statusCode}');
       try {
